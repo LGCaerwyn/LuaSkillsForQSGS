@@ -12,79 +12,61 @@
 	技能名：仁德
 	相关武将：怀旧-标准·刘备-旧
 	描述：出牌阶段，你可以将任意数量的手牌交给一名其他角色，然后当你于此阶段内以此法交给其他角色的手牌首次达到两张或更多时，你回复1点体力。
-	引用：LuaRende
-	状态：验证通过
+	引用：LuaNosRende
+	状态：1217验证通过
 ]]--
-LuaRendeCard = sgs.CreateSkillCard{
-	name = "LuaRendeCard",
-	target_fixed = false,
-	will_throw = false,
+LuaNosRendeCard = sgs.CreateSkillCard{
+	name = "LuaNosRendeCard" ,
+	will_throw = false ,
+	handling_method = sgs.Card_MethodNone ,
+	filter = function(self, selected, to_select)
+		return (#selected == 0) and (to_select:objectName() ~= sgs.Self:objectName())
+	end ,
 	on_use = function(self, room, source, targets)
-		local target
-		if #targets == 0 then
-			local list = room:getAlivePlayers()
-			for _,player in sgs.qlist(list) do
-				if player:objectName() ~= source:objectName() then
-					target = player
-					break
-				end
-			end
-		else
-			target = targets[1]
-		end
+		local target = targets[1]
 		room:obtainCard(target, self, false)
-		local subcards = self:getSubcards()
-		local old_value = source:getMark("rende")
-		local new_value = old_value + subcards:length()
-		room:setPlayerMark(source, "rende", new_value)
-		if old_value < 2 then
-			if new_value >= 2 then
-				local recover = sgs.RecoverStruct()
-				recover.card = self
-				recover.who = source
-				room:recover(source, recover)
-			end
+		local old_value = source:getMark("LuaNosRende")
+		local new_value = old_value + self:getSubcards():length()
+		room:setPlayerMark(source, "LuaNosRende", new_value)
+		if (old_value < 2) and (new_value >= 2) then
+			local recover = sgs.RecoverStruct()
+			recover.card = self
+			recover.who = source
+			room:recover(source, recover)
 		end
 	end
 }
-LuaRendeVS = sgs.CreateViewAsSkill{
-	name = "LuaRende",
-	n = 999,
+LuaNosRendeVS = sgs.CreateViewAsSkill{
+	name = "LuaNosRende" ,
+	n = 999 ,
 	view_filter = function(self, selected, to_select)
 		return not to_select:isEquipped()
-	end,
+	end ,
 	view_as = function(self, cards)
-		if #cards > 0 then
-			local rende_card = LuaRendeCard:clone()
-			for i=1, #cards, 1 do
-				local id = cards[i]:getId()
-				rende_card:addSubcard(id)
-			end
-			return rende_card
+		if #cards == 0 then return nil end
+		local rende_card = LuaNosRendeCard:clone()
+		for _, c in ipairs(cards) do
+			rende_card:addSubcard(c)
 		end
+		return rende_card
+	end ,
+	enabled_at_play = function(self, player)
+		return not player:isKongcheng()
 	end
 }
-LuaRende = sgs.CreateTriggerSkill{
-	name = "LuaRende",
-	frequency = sgs.Skill_NotFrequent,
-	events = {sgs.EventPhaseStart},
-	view_as_skill = LuaRendeVS,
+LuaNosRende = sgs.CreateTriggerSkill{
+	name = "LuaNosRende" ,
+	events = {sgs.EventPhaseChanging} ,
+	view_as_skill = LuaNosRendeVS ,
 	on_trigger = function(self, event, player, data)
 		local room = player:getRoom()
-		room:setPlayerMark(player, "rende", 0)
+		local change = data:toPhaseChange()
+		if change.to ~= sgs.Player_NotActive then return false end
+		room:setPlayerMark(player,"LuaNosRende", 0)
 		return false
-	end,
+	end ,
 	can_trigger = function(self, target)
-		if target then
-			if target:isAlive() then
-				if target:hasSkill(self:objectName()) then
-					if target:getPhase() == sgs.Player_NotActive then
-						return target:hasUsed("#LuaRendeCard")
-					end
-				end
-			end
-		end
-		return false
+		return target and (target:getMark("LuaNosRende") > 0)
 	end
 }
 --[[
@@ -212,28 +194,43 @@ end
 	技能名：忍戒（锁定技）
 	相关武将：神·司马懿
 	描述：每当你受到一次伤害后或于弃牌阶段弃置手牌后，你获得等同于受到伤害或弃置手牌数量的“忍”标记。
-	引用：LuaRenjie
-	状态：验证通过
+	引用：LuaRenjie、LuaRenjieClear
+	状态：1217验证通过
 ]]--
 LuaRenjie = sgs.CreateTriggerSkill{
-	name = "LuaRenjie",
-	frequency = sgs.Skill_Compulsory,
-	events = {sgs.Damaged,sgs.CardsMoveOneTime},
+	name = "LuaRenjie" ,
+	events = {sgs.Damaged, sgs.CardsMoveOneTime} ,
+	frequency = sgs.Skill_Compulsory ,
 	on_trigger = function(self, event, player, data)
-		local room = player:getRoom()
 		if event == sgs.CardsMoveOneTime then
-		if player:getPhase() == sgs.Player_Discard then
-			local move = data:toMoveOneTime()
-		if move.to_place == sgs.Player_DiscardPile and move.from:objectName() == player:objectName() then
-			local n = move.card_ids:length()
-			player:gainMark("@bear",n)
-	end
-end
+			if player:getPhase() == sgs.Player_Discard then
+				local move = data:toMoveOneTime()
+				if (move.from:objectName() == player:objectName())
+						and (bit32.band(move.reason.m_reason, sgs.CardMoveReason_S_MASK_BASIC_REASON) == sgs.CardMoveReason_S_REASON_DISCARD) then
+					local n = move.card_ids:length()
+					if n > 0 then
+						player:gainMark("@bear", n)
+					end
+				end
+			end
 		elseif event == sgs.Damaged then
 			local damage = data:toDamage()
 			player:gainMark("@bear",damage.damage)
+		end
+		return false
 	end
-end
+}
+LuaRenjieClear = sgs.CreateTriggerSkill{
+	name = "#LuaRenjie-clear" ,
+	events = {sgs.EventLoseSkill} ,
+	on_trigger = function(self, event, player, data)
+		if data:toString() == "LuaRenjie" then
+			player:loseAllMarks("@bear")
+		end
+	end ,
+	can_trigger = function(self, target)
+		return target
+	end
 }
 --[[
 	技能名：肉林（锁定技）
@@ -300,7 +297,7 @@ LuaRoulin = sgs.CreateTriggerSkill{
 	相关武将：山·刘禅
 	描述：回合开始阶段开始时，若你的体力是全场最少的（或之一），你须加1点体力上限，回复1点体力，并获得技能“激将”。
 	引用：LuaRuoyu
-	状态：1227验证通过
+	状态：1217验证通过
 ]]--
 LuaRuoyu = sgs.CreateTriggerSkill{
 	name = "LuaRuoyu$",
