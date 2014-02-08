@@ -255,7 +255,47 @@ LuaXiaoji = sgs.CreateTriggerSkill{
 	技能名：枭姬
 	相关武将：1v1·孙尚香1v1
 	描述：每当你失去一张装备区的装备牌后，你可以选择一项：摸两张牌，或回复1点体力。
+	引用：Lua1V1Xiaoji
+	状态：1217验证通过
 ]]--
+Lua1V1Xiaoji = sgs.CreateTriggerSkill{
+	name = "Lua1V1Xiaoji" ,
+	frequency = sgs.Skill_Compulsory ,
+	events = {sgs.CardsMoveOneTime} ,
+	on_trigger = function(self, event, player, data)
+		local room = player:getRoom()
+		local move = data:toMoveOneTime()
+		if move.from and (move.from:objectName() == player:objectName()) and move.from_places:contains(sgs.Player_PlaceEquip) then
+			for i = 0, move.card_ids:length() - 1, 1 do
+				if not player:isAlive() then return false end
+				if move.from_places:at(i) == sgs.Player_PlaceEquip then
+					local choices = {}
+					table.insert(choices, "draw")
+					table.insert(choices, "cancel") 
+					if player:isWounded() then
+						table.insert(choices, "recover") 
+					end
+					local choice
+					if #choices == 1 then
+						choice = choices[1]
+					else
+						choice = room:askForChoice(player, self:objectName(), table.concat(choices, "+"))
+					end
+					if choice == "recover" then
+						local recover = sgs.RecoverStruct()
+						recover.who = player
+						room:recover(player, recover)
+					elseif choice == "draw" then
+						player:drawCards(2)
+					else
+						break
+					end
+				end
+			end
+		end
+		return false
+	end
+}
 --[[
 	技能名：骁果
 	相关武将：国战·乐进
@@ -379,7 +419,7 @@ LuaXinSheng = sgs.CreateTriggerSkill{
 	on_trigger = function(self, event, player, data)
 		local room = player:getRoom()
 		if room:askForSkillInvoke(player, self:objectName()) then
-			acquireGenerals(player, data:toDamage().damage) --需調用ChapterH 的acquieGenerals 函数
+			acquireGenerals(player, data:toDamage().damage) --需调用ChapterH 的acquieGenerals 函数
 		end
 	end
 }
@@ -1030,7 +1070,39 @@ LuaXueyi = sgs.CreateMaxCardsSkill{
 	技能名：恂恂
 	相关武将：势·李典
 	描述：摸牌阶段开始时，你可以放弃摸牌并观看牌堆顶的四张牌，你获得其中的两张牌，然后将其余的牌以任意顺序置于牌堆底。
+	引用：LuaXunxun
+	状态：1217验证通过
 ]]--
+LuaXunxun = sgs.CreatePhaseChangeSkill{
+	name = "LuaXunxun",
+	frequency = sgs.Skill_Frequent,
+
+	on_phasechange = function(self,player)
+		if player:getPhase() == sgs.Player_Draw then
+			local room = player:getRoom()
+			if room:askForSkillInvoke(player,self:objectName()) then
+			local card_ids = room:getNCards(4)
+			local obtained = sgs.IntList()
+				room:fillAG(card_ids,player)
+			local id1 = room:askForAG(player,card_ids,false,self:objectName())
+                card_ids:removeOne(id1)
+                obtained:append(id1)
+                room:takeAG(player,id1,false)
+			local id2 = room:askForAG(player,card_ids,false,self:objectName())
+				card_ids:removeOne(id2)
+				obtained:append(id2)
+				room:clearAG(player)
+				room:askForGuanxing(player,card_ids,sgs.Room_GuanxingDownOnly)
+			local dummy = sgs.Sanguosha:cloneCard("jink",sgs.Card_NoSuit,0)
+			for _,id in sgs.qlist(obtained) do
+				dummy:addSubcard(id)
+			end
+				player:obtainCard(dummy,false)
+			return true
+			end
+		end
+	end 
+}
 --[[
 	技能名：循规
 	相关武将：3D织梦·蒋琬
