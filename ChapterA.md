@@ -10,7 +10,7 @@
 **引用**：LuaAnxian  
 **状态**：1217验证通过  
 ```lua
-	LuaAnxian = sgs.CreateTriggerSkill{      
+	LuaAnxian = sgs.CreateTriggerSkill{     
 		name = "LuaAnxian" ,   
 		events = {sgs.DamageCaused, sgs.TargetConfirming,  sgs.SlashEffected} ,   
 		on_trigger = function(self, event, player, data)  
@@ -131,36 +131,52 @@
 **描述**：你的回合外，每当你需要使用或打出一张基本牌时，你可以观看牌堆顶的两张牌，然后使用或打出其中一张该类别的基本牌。  
 **状态**：1217验证通过[与源码略有区别]  
 ```lua
+	local json = require ("json")
 	function view(room, player, ids, enabled, disabled)
-		local result = -1
-		room:notifySkillInvoked(player, "LuaAocai")
-		if enabled:isEmpty() then
-			room:fillAG(ids, player)
-			room:getThread():delay(tonumber(sgs.GetConfig("OriginAIDelay", "")))
-			room:clearAG(player) --直接关闭
-		else
-			room:fillAG(ids, player, disabled)
-			local id = room:askForAG(player, enabled, true, "LuaAocai")
-			if id ~= -1 then
-				ids:removeOne(id)
-				result = id
-			end
-			room:clearAG(player)
-		 end
-		--room:doBroadcastNotify(sgs.CommandType.S_COMMAND_UPDATE_PILE, tostring(drawPile:length())) 无效果不知道为什么
+		local result = -1;
+	    local jsonLog = {
+			"$ViewDrawPile",
+			player:objectName(),
+			"",
+			table.concat(sgs.QList2Table(ids),"+"),
+			"",
+			""
+		}
+	    room:doNotify(player,sgs.CommandType.S_COMMAND_LOG_SKILL, json.encode(jsonLog))
+	    room:notifySkillInvoked(player, "LuaAocai");
+	    if enabled:isEmpty() then
+	        local jsonValue = {
+	            ".",
+	            false,
+	            sgs.QList2Table(ids)
+			}
+	        room:doNotify(player,sgs.CommandType.S_COMMAND_SHOW_ALL_CARDS, json.encode(jsonValue));
+	    else
+	        room:fillAG(ids, player, disabled)
+	        local id = room:askForAG(player, enabled, true, "LuaAocai");
+	        if (id ~= -1) then
+	            ids:removeOne(id)
+	            result = id
+	        end
+	        room:clearAG(player)
+	    end
+	    --源码各种可恶，竟然用引用……
+		--用这种方法应该也可以解决问题。
 		local dummy = sgs.Sanguosha:cloneCard("jink")
 		local moves = {}
 		if ids:length() > 0 then
 			for _, id in sgs.qlist(ids) do table.insert(moves, id) end
 			local unmoves = sgs.reverse(moves)
 			for _, id in ipairs(unmoves) do dummy:addSubcard(id) end
+			room:setPlayerFlag(player,"LuaAocai_InTempMoving")
 			player:addToPile("#LuaAocai", dummy, false) --只能强制移到特殊区域再移动到摸牌堆
 			room:moveCardTo(dummy, nil, sgs.Player_DrawPile, false)
+			room:setPlayerFlag(player,"-LuaAocai_InTempMoving")
 		end
-		if result == -1 then
-			room:setPlayerFlag(player, "Global_LuaAocaiFailed")
+	    if result == -1 then
+	        room:setPlayerFlag(player, "Global_LuaAocaiFailed")
 		end
-		return result
+	    return result
 	end
 	LuaAocaiVS = sgs.CreateViewAsSkill{
 		name = "LuaAocai",
@@ -169,16 +185,16 @@
 			return false
 		end,
 		enabled_at_response=function(self, player, pattern)
-			if (player:getPhase() ~= sgs.Player_NotActive or player:hasFlag("Global_LuaAocaiFailed")) then return end
-			if pattern == "slash" then
-				 return sgs.Sanguosha:getCurrentCardUseReason() == sgs.CardUseStruct_CARD_USE_REASON_RESPONSE_USE
-			elseif (pattern == "peach") then
+			 if (player:getPhase() ~= sgs.Player_NotActive or player:hasFlag("Global_LuaAocaiFailed")) then return end
+			 if pattern == "slash" then
+				 	return sgs.Sanguosha:getCurrentCardUseReason() == sgs.CardUseStruct_CARD_USE_REASON_RESPONSE_USE
+				elseif (pattern == "peach") then
 					 return not player:hasFlag("Global_PreventPeach")
-			elseif string.find(pattern, "analeptic") then
+				elseif string.find(pattern, "analeptic") then
 				return true
 			end
-			return false
-		end,
+				return false
+			end,
 		view_as = function(self, cards)
 			local acard = LuaAocaiCard:clone()
 			local pattern = sgs.Sanguosha:getCurrentCardUsePattern()
@@ -186,8 +202,8 @@
 				pattern = "analeptic"
 			end
 			acard:setUserString(pattern)
-			return acard
-		end,
+				return acard
+			end,
 	}
 	LuaAocai = sgs.CreateTriggerSkill{
 		name = "LuaAocai",
@@ -215,6 +231,19 @@
 					return true
 				end
 			end
+		end,
+	}
+	LuaAocaiFakeMove = sgs.CreateTriggerSkill{
+		name = "#LuaAocai-fake-move",
+		events = {sgs.BeforeCardsMove,sgs.CardsMoveOneTime},
+		priority = 10,
+		on_trigger = function(self, event, player, data)
+			if player:hasFlag("LuaAocai_InTempMoving") then
+				return true
+			end
+		end,
+		can_trigger = function(self, target)
+			return target
 		end,
 	}
 	LuaAocaiCard=sgs.CreateSkillCard{

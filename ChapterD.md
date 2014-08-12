@@ -130,8 +130,20 @@
 **相关武将**：神·诸葛亮  
 **描述**：结束阶段开始时，你可以将X张“星”置入弃牌堆并选择X名角色，若如此做，你的下回合开始前，每当这些角色受到的非雷电伤害结算开始时，防止此伤害。  
 **引用**：LuaDawu  
-**状态**：1217验证通过(需配合本手册的“七星”使用)
+**状态**：1217验证通过(需配合本手册的“七星”使用)  
+**备注**：医治永恒：源码狂风和大雾的技能询问与标记的清除分别位于七星的QixingAsk和QixingClear中，此技能独立出来了  
 ```lua
+	DiscardStar = function(shenzhuge, room,n, skillName)	
+		local stars = shenzhuge:getPile("stars")
+		for i = 1, n, 1 do
+			room:fillAG(stars, shenzhuge)
+			local card_id = room:askForAG(shenzhuge, stars, false, "qixing-discard")
+			room:clearAG(shenzhuge)		
+			stars:removeOne(card_id)
+			local card = sgs.Sanguosha:getCard(card_id)
+			room:throwCard(card, nil, nil)
+		end
+	end
 	LuaDawuCard = sgs.CreateSkillCard{
 		name = "LuaDawuCard",
 		target_fixed = false,
@@ -143,15 +155,8 @@
 		end,
 		on_use = function(self, room, source, targets)
 			local count = #targets
-			local stars = source:getPile("stars")
-			for i = 1, count, 1 do
-				room:fillAG(stars, source);
-				local card_id = room:askForAG(source, stars, false, "qixing-discard")
-				source:invoke("clearAG")
-				stars:removeOne(card_id)
-				local star = sgs.Sanguosha:getCard(card_id)
-				room:throwCard(star, nil, nil)
-			end
+			DiscardStar(source,room,count,"LuaDawu")
+			source:setTag("LuaQixing_user", sgs.QVariant(true))		
 			for _,target in ipairs(targets) do
 				target:gainMark("@fog")
 			end
@@ -167,11 +172,23 @@
 			return false
 		end,
 		enabled_at_response = function(self, player, pattern)
-			return pattern == "@@dawu"
+			return pattern == "@@LuaDawu"
 		end
 	}
 	LuaDawu = sgs.CreateTriggerSkill{
 		name = "LuaDawu",
+		events = {sgs.EventPhaseStart},
+		view_as_skill = LuaDawuVS,
+		on_trigger = function(self,event,player,data)		
+			if player:getPhase() ~= sgs.Player_Finish then return false end
+			if player:getPile("stars"):isEmpty() then return false end
+			local room = player:getRoom()
+			room:askForUseCard(player,"@@LuaDawu","@LuaDawu")
+			return false
+		end
+	}
+	LuaDawuPrevent = sgs.CreateTriggerSkill{
+		name = "#LuaDawuPrevent",
 		frequency = sgs.Skill_NotFrequent,
 		events = {sgs.DamageForseen},
 		view_as_skill = LuaDawuVS,
@@ -186,13 +203,41 @@
 			return false
 		end
 	}
+	LuaDawuClear = sgs.CreateTriggerSkill{
+		name = "#LuaDawuClear",
+		events = {sgs.Death,sgs.EventPhaseStart},
+		can_trigger = function(self,target)
+			return target and target:getTag("LuaQixing_user"):toBool()
+		end,
+		on_trigger = function(self,event,player,data)
+			local room = player:getRoom()
+			if event == sgs.Death then
+				local death = data:toDeath()
+				if death.who:objectName() ~= player:objectName() then return false end
+				for _,p in sgs.qlist(room:getAllPlayers()) do
+					if p:getMark("@fog") > 0 then
+						p:loseAllMarks("@fog")
+					end
+				end
+			else
+				if player:getPhase() == sgs.Player_RoundStart then
+					for _,p in sgs.qlist(room:getAllPlayers()) do
+						if p:getMark("@fog") > 0 then
+							p:loseAllMarks("@fog")
+						end
+					end
+				end
+			end
+			return false
+		end
+	}
 ```
 [返回索引](#技能索引)
 ##单骑
 **相关武将**：SP·关羽  
 **描述**：**觉醒技，**准备阶段开始时，若你的手牌数大于体力值，且本局游戏主公为曹操，你减1点体力上限，然后获得技能“马术”。  
 **引用**：LuaDanji  
-**状态**：验证通过
+**状态**：1217验证通过
 ```lua
 	LuaDanji = sgs.CreateTriggerSkill{
 		name = "LuaDanji",
@@ -202,7 +247,7 @@
 			local room = player:getRoom()
 			local lord = room:getLord()
 			if lord then
-				if lord:getGeneralName() == "caocao" or getGeneral2Name() == "caocao" then
+				if string.find(lord:getGeneralName(),"caocao") or string.find(lord:getGeneral2Name(),"caocao") then
 					player:setMark("danji", 1)
 					player:gainMark("@waked")
 					if room:changeMaxHpForAwakenSkill(player)then
@@ -222,12 +267,13 @@
 	}
 ```
 [返回索引](#技能索引)
-##胆守
+## 胆守
 **相关武将**：一将成名2013·朱然  
 **描述**： 每当你造成伤害后，你可以摸一张牌，然后结束当前回合并结束一切结算。  
+**状态**：Lua无法实现
 
 [返回索引](#技能索引)
-##啖酪
+## 啖酪
 **相关武将**：SP·杨修  
 **描述**：当一张锦囊牌指定包括你在内的多名目标后，你可以摸一张牌，若如此做，此锦囊牌对你无效。  
 **引用**：LuaDanlao  
@@ -285,7 +331,7 @@
 	}
 ```
 [返回索引](#技能索引)
-##缔盟
+## 缔盟
 **相关武将**：林·鲁肃  
 **描述**：出牌阶段限一次，你可以选择两名其他角色并弃置X张牌（X为两名目标角色手牌数的差），令这些角色交换手牌。  
 **引用**：LuaDimeng  
@@ -346,13 +392,51 @@
 	}
 ```
 [返回索引](#技能索引)
-##洞察
+## 洞察
 **相关武将**：倚天·贾文和  
 **描述**：回合开始阶段开始时，你可以指定一名其他角色：该角色的所有手牌对你处于可见状态，直到你的本回合结束。其他角色都不知道你对谁发动了洞察技能，包括被洞察的角色本身  
-**状态**：验证失败
-
+**引用**：LuaDongcha  
+**状态**：1217验证通过
+```lua
+	function findServerPlayer(room,name)
+		for _,p in sgs.qlist(room:getAlivePlayers()) do
+			if p:objectName() == name then
+				return p
+			end
+		end
+		return nil
+	end
+	LuaDongcha = sgs.CreateTriggerSkill{
+		name = "LuaDongcha",
+		events = {sgs.EventPhaseStart},
+		on_trigger = function(self,event,player,data)
+			local phase = player:getPhase()
+			local room = player:getRoom()
+			if phase == sgs.Player_Start then
+				local shou = room:askForPlayerChosen(player,room:getOtherPlayers(player),self:objectName(),"@LuaDongcha",true,false)
+				if shou then
+					room:setPlayerFlag(shou,"dongchaee")
+					room:setTag("Dongchaee",sgs.QVariant(shou:objectName()))
+					room:setTag("Dongchaer",sgs.QVariant(player:objectName()))
+					room:showAllCards(shou,player)
+				end
+			elseif phase == sgs.Player_Finish then
+				local shou_name = room:getTag("Dongchaee"):toString()
+				if shou_name ~= "" then
+					local shou = findServerPlayer(room,shou_name)
+					if shou then
+						room:setPlayerFlag(shou,"-dongchaee")
+						room:setTag("Dongchaee",sgs.QVariant())
+						room:setTag("Dongchaer",sgs.QVariant())
+					end
+				end
+			end
+			return false
+		end
+	}
+```
 [返回索引](#技能索引)
-##毒士
+## 毒士
 **相关武将**：倚天·贾文和  
 **描述**：**锁定技，**杀死你的角色获得崩坏技能直到游戏结束  
 **引用**：LuaDushi  
@@ -490,7 +574,7 @@
 	}
 	LuaDuwu = sgs.CreateTriggerSkill{
 		name = "LuaDuwu" ,
-		events = sgs.AskForPeachesDone,--DB:Lua没有QuitDying时机，在这里处理方式略有不同
+		events = {sgs.AskForPeachesDone},--DB:Lua没有QuitDying时机，在这里处理方式略有不同
 		view_as_skill = LuaDuwuVS ,
 		on_trigger = function(self, event, player, data)
 			local room = player:getRoom()
@@ -554,9 +638,9 @@
 	}
 ```
 [返回索引](#技能索引)
-##断肠（锁定技）
+##断肠
 **相关武将**：山·蔡文姬、SP·蔡文姬  
-**描述**：你死亡时，杀死你的角色失去其所有武将技能。  
+**描述**：**锁定技，**你死亡时，杀死你的角色失去其所有武将技能。  
 **引用**：LuaDuanchang  
 **状态**：1217验证通过
 ```lua
@@ -629,7 +713,7 @@
 **描述**：当你成为其他角色使用的牌的目标后，你可以弃置其至多两张牌（也可以不弃置），然后失去1点体力。  
 **引用**：LuaXDuanzhi、LuaXDuanzhiAvoidTriggeringCardsMove  
 **状态**：1217验证通过  
-**备注**:原版遇到香香会有bug,新版选择手牌可能会有多次选择的情况()两次随机选卡为相同id,以后再修正(我会乱说下面就是原版？)
+**备注**:原版遇到香香会有bug,新版选择手牌可能会有多次选择的情况，两次随机选卡为相同id,以后再修正(我会乱说下面就是原版？)
 ```lua
 	LuaXDuanzhi = sgs.CreateTriggerSkill{
 		name = "LuaXDuanzhi",
@@ -642,7 +726,7 @@
 	            return false
 			end
 	        if player:askForSkillInvoke(self:objectName(), data) then
-	            room:setPlayerFlag(player, "duanzhi_InTempMoving");
+	            room:setPlayerFlag(player, "LuaXDuanzhi_InTempMoving");
 	            local target = use.from
 	            local dummy = sgs.Sanguosha:cloneCard("slash") --没办法了，暂时用你代替DummyCard吧……
 	            local card_ids = sgs.IntList()
@@ -660,7 +744,7 @@
 	                    room:moveCardTo(sgs.Sanguosha:getCard(card_ids:ai(i-1)), target, original_places:at(i-1), false)
 					end
 				end
-	            room:setPlayerFlag(player, "-duanzhi_InTempMoving")
+	            room:setPlayerFlag(player, "-LuaXDuanzhi_InTempMoving")
 	            if dummy:subcardsLength() > 0 then
 	                room:throwCard(dummy, target, player)
 				end
@@ -669,7 +753,20 @@
 	        return false
 		end,
 	}
-```
+	LuaXDuanzhiFakeMove = sgs.CreateTriggerSkill{
+		name = "#LuaXDuanzhi-fake-move",
+		events = {sgs.BeforeCardsMove,sgs.CardsMoveOneTime},
+		priority = 10,
+		on_trigger = function(self, event, player, data)
+			if player:hasFlag("LuaXDuanzhi_InTempMoving") then
+				return true
+			end
+		end,
+		can_trigger = function(self, target)
+			return target
+		end,
+	}
+```  
 [返回索引](#技能索引)
 ##夺刀
 **相关武将**：一将成名2013·潘璋&马忠  
