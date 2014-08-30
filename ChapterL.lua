@@ -472,9 +472,9 @@ LuaXLirang = sgs.CreateTriggerSkill{
 							local ids = move.card_ids
 							i = 0
 							for _,card_id in sgs.qlist(ids) do
-								if (original_lirang.contains(card_id) and not lirang_card.contains(card_id)) then
-									move.card_ids.removeOne(card_id)
-									move.from_places.removeAt(i)
+								if (original_lirang:contains(card_id) and not lirang_card:contains(card_id)) then
+									move.card_ids:removeOne(card_id)
+									move.from_places:removeAt(i)
 								end
 								i = i+1
 							end
@@ -1039,25 +1039,14 @@ LuaLiuliCard = sgs.CreateSkillCard{
 		effect.to:setFlags("LuaLiuliTarget")
 	end
 }
-LuaLiuliVS = sgs.CreateViewAsSkill{
+LuaLiuliVS = sgs.CreateOneCardViewAsSkill{
 	name = "LuaLiuli" ,
-	n = 1,
-	view_filter = function(self, selected, to_select)
-		if #selected > 0 then return false end
-		return not sgs.Self:isJilei(to_select)
-	end ,
-	view_as = function(self, cards)
-		if #cards == 1 then
-			local liuli_card = LuaLiuliCard:clone()
-			liuli_card:addSubcard(cards[1])
-			return liuli_card
-		end
-	end ,
-	enabled_at_play = function()
-		return false
-	end ,
-	enabled_at_response = function(self, player, pattern)
-		return pattern == "@@LuaLiuli"
+	response_pattern = "@@LuaLiuli",
+	filter_pattern = ".!",
+	view_as = function(self, card)
+		local liuli_card = LuaLiuliCard:clone()
+		liuli_card:addSubcard(card)
+		return liuli_card
 	end
 }
 LuaLiuli = sgs.CreateTriggerSkill{
