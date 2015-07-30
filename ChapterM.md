@@ -5,16 +5,18 @@
 
 [返回目录](README.md#目录)
 ##技能名：马术
-**相关武将**：标准·马超、火·庞德、SP·庞德、SP·关羽、SP·最强神话、SP·暴怒战神、SP·马超、一将成名2012·马岱、怀旧-一将2·马岱-旧、国战·马腾、2013-3v3·吕布、SP·台版马超  
+**相关武将**：标准·马超、火·庞德、SP·庞德、SP·关羽、SP·最强神话、SP·暴怒战神、SP·马超、一将成名2012·马岱、一将成名2012·马岱-旧、国战·马腾、3v3·吕布、SP·台版马超、界限突破·马超、JSP·关羽  
 **描述**：**锁定技，**你计算的与其他角色的距离-1。  
 **引用**：LuaMashu  
-**状态**：1217验证通过
+**状态**：0405验证通过
 ```lua
 	LuaMashu = sgs.CreateDistanceSkill{
 		name = "LuaMashu",
-		correct_func = function(self, from, to)
-			if from:hasSkill("LuaMashu") then
+		correct_func = function(self, from)
+			if from:hasSkill(self:objectName()) then
 				return -1
+			else
+				return 0	
 			end
 		end,
 	}
@@ -137,28 +139,22 @@
 **相关武将**：火·庞德、SP·庞德  
 **描述**：当你使用的【杀】被目标角色的【闪】抵消时，你可以弃置其一张牌。  
 **引用**：LuaMengjin  
-**状态**：1217验证通过
+**状态**：0405验证通过
 ```lua
 	LuaMengjin = sgs.CreateTriggerSkill{
 		name = "LuaMengjin",
-		frequency = sgs.Skill_NotFrequent,
 		events = {sgs.SlashMissed},
 		on_trigger = function(self, event, player, data)
+			local room = player:getRoom()
 			local effect = data:toSlashEffect()
-			local dest = effect.to
-			if dest:isAlive() then
-				if not dest:isNude() then
-					if player:askForSkillInvoke(self:objectName(), data) then
-						local room = player:getRoom()
-						local to_throw = room:askForCardChosen(player, dest, "he", self:objectName())
-						local card = sgs.Sanguosha:getCard(to_throw)
-						room:throwCard(card, dest, player);
-					end
+			if effect.to:isAlive() and player:canDiscard(effect.to, "he") then
+				if player:askForSkillInvoke(self:objectName(), data) then
+					local to_throw = room:askForCardChosen(player, effect.to, "he", self:objectName(), false, sgs.Card_MethodDiscard)
+					room:throwCard(sgs.Sanguosha:getCard(to_throw), effect.to, player)
 				end
 			end
 			return false
 		end,
-		priority = 2
 	}
 ```
 [返回索引](#技能索引)

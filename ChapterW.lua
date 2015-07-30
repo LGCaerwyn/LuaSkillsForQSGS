@@ -8,58 +8,24 @@
 	相关武将：林·贾诩、SP·贾诩
 	描述：在你的回合，除你以外，只有处于濒死状态的角色才能使用【桃】。
 	引用：LuaWansha
-	状态：1217验证通过
+	状态：0405验证失败
 ]]--
-LuaWansha=sgs.CreateTriggerSkill{
-	name = "LuaWansha",
-	events = {sgs.AskForPeaches, sgs.EventPhaseChanging, sgs.Death},
-	frequency = sgs.Skill_Compulsory,
-	on_trigger = function(self, event, player, data)
-		local room = player:getRoom()
-		if event == sgs.AskForPeaches then
-			local dying = data:toDying()
-			local jiaxu = room:getCurrent()
-			if jiaxu and jiaxu:isAlive() and jiaxu:hasSkill(self:objectName()) and jiaxu:getPhase() ~= sgs.Player_NotActive then
-				if dying.who:objectName() ~= player:objectName() and jiaxu:objectName() ~= player:objectName() then
-					room:setPlayerFlag(player, "Global_PreventPeach")
-				end
-			end
-		else
-			if event == sgs.EventPhaseChanging then
-				local change = data:toPhaseChange()
-				if change.to ~= sgs.Player_NotActive then return false end
-			elseif event == sgs.Death then
-				local death = data:toDeath()
-				if death.who:objectName() ~= player:objectName() or death.who:getPhase() == sgs.Player_NotActive then return false end
-			end
-			for _ , p in sgs.qlist(room:getAllPlayers()) do
-				if p:hasFlag("Global_PreventPeach") then
-                			 room:setPlayerFlag(p, "-Global_PreventPeach")
-				end
-			end
-		end
-		return false
-	end,
-	can_trigger = function(self,target)
-		return target
-	end
-}
+
 --[[
 	技能名：婉容
 	相关武将：1v1·大乔
-	描述：每当你成为【杀】的目标后，你可以摸一张牌。 
+	描述：每当你成为【杀】的目标后，你可以摸一张牌。  
 	引用：LuaWanrong
-	状态：1217验证通过
+	状态：0405验证通过
 ]]--
 LuaWanrong = sgs.CreateTriggerSkill{
 	name = "LuaWanrong",
 	events = {sgs.TargetConfirmed},
 	frequency = sgs.Skill_Frequent,
-    	on_trigger=function(self, event, player, data)
-		local room = player:getRoom()
+	on_trigger = function(self, event, player, data)
 		local use = data:toCardUse()
-		if (use.card:isKindOf("Slash") and use.to:contains(player) and room:askForSkillInvoke(player, self:objectName(), data)) then
-			player:drawCards(1)
+		if use.card:isKindOf("Slash") and use.to:contains(player) and player:getRoom():askForSkillInvoke(player, self:objectName(), data) then
+			player:drawCards(1, self:objectName())
 		end
 		return false
 	end
@@ -153,7 +119,7 @@ end
 LuaWeidaiCard = sgs.CreateSkillCard{
 	name = "LuaWeidaiCard",
 	target_fixed = true,
-    	mute = true,
+		mute = true,
 	on_validate = function(self, card_use)
 		card_use.m_isOwnerUse = false
 		local sunce = card_use.from
@@ -202,8 +168,8 @@ LuaWeidai = sgs.CreateZeroCardViewAsSkill{
 	end,
 	enabled_at_play = function(self, player)
 		return hasWuGenerals(player) and player:hasLordSkill("LuaWeidai")
-               and not player:hasFlag("Global_LuaWeidaiFailed")
-               and sgs.Analeptic_IsAvailable(player)
+			   and not player:hasFlag("Global_LuaWeidaiFailed")
+			   and sgs.Analeptic_IsAvailable(player)
 	end,
 	enabled_at_response = function(self, player, pattern)
 		return hasWuGenerals(player) and pattern == "peach+analeptic" and not player:hasFlag("Global_LuaWeidaiFailed")
@@ -247,20 +213,20 @@ LuaLukangWeiyan = sgs.CreateTriggerSkill{
 	相关武将：林·贾诩、SP·贾诩
 	描述：你不能被选择为黑色锦囊牌的目标。
 	引用：LuaWeimu
-	状态：1217验证通过
+	状态：0405验证通过
 ]]--
 LuaWeimu = sgs.CreateProhibitSkill{
 	name = "LuaWeimu" ,
 	is_prohibited = function(self, from, to, card)
-		return to:hasSkill(self:objectName()) and (card:isKindOf("TrickCard") or card:isKindOf("QiceCard"))
-			and card:isBlack() and not string.find(string.lower(card:getSkillName()),"nosguhuo")--特别注意旧蛊惑
+		return to:hasSkill(self:objectName()) and (card:isKindOf("TrickCard") or card:isKindOf("QiceCard")) 
+		and card:isBlack() and card:getSkillName() ~= "nosguhuo" --特别注意旧蛊惑
 	end
 }
 --[[
 	技能名：伪帝（锁定技）
 	相关武将：SP·袁术、SP·台版袁术
 	描述：你拥有当前主公的主公技。
-	状态：验证失败
+	状态：0405验证失败--目测永远实现不了
 ]]--
 --[[
 	技能名：温酒（锁定技）
@@ -301,48 +267,41 @@ LuaWenjiu = sgs.CreateTriggerSkill{
 }
 --[[
 	技能名：无谋（锁定技）
-	相关武将：神·吕布
-	描述：当你使用一张非延时类锦囊牌选择目标后，你须弃1枚“暴怒”标记或失去1点体力。
+	相关武将：神·吕布、SP·神吕布
+	描述：每当你使用一张非延时锦囊牌时，你须选择一项：失去1点体力，或弃一枚“暴怒”标记。 
 	引用：LuaWumou
-	状态：1217验证通过
+	状态：0405验证通过
 ]]--
 LuaWumou = sgs.CreateTriggerSkill{
 	name = "LuaWumou" ,
 	frequency = sgs.Skill_Compulsory ,
-	events = {sgs.CardUsed, sgs.CardResponded} ,
+	events = {sgs.CardUsed} ,
 	on_trigger = function(self, event, player, data)
-		local card
-		if event == sgs.CardUsed then
-			local use = data:toCardUse()
-			card = use.card
-		elseif event == sgs.CardResponded then
-			card = data:toCardResponse().m_card
-		end
-		if card:isNDTrick() then
+		local room = player:getRoom()
+		local use = data:toCardUse()
+		if use.card:isNDTrick() then
+			room:sendCompulsoryTriggerLog(player, self:objectName())
 			local num = player:getMark("@wrath")
-			if num >= 1 then
-				if player:getRoom():askForChoice(player, self:objectName(), "discard+losehp") == "discard" then
-					player:loseMark("@wrath")
-				else
-					player:getRoom():loseHp(player)
-				end
+			if num >= 1 and room:askForChoice(player, self:objectName(), "discard+losehp") == "discard" then
+				player:loseMark("@wrath")
 			else
-				player:getRoom():loseHp(player)
+				room:loseHp(player)
 			end
 		end
+		return false
 	end
 }
 --[[
 	技能名：无前
-	相关武将：神·吕布
-	描述：出牌阶段，你可以弃2枚“暴怒”标记并选择一名其他角色，该角色的防具无效且你获得技能“无双”，直到回合结束。
+	相关武将：神·吕布、SP·神吕布
+	描述：出牌阶段，你可以弃两枚“暴怒”标记并选择一名其他角色：若如此做，你拥有“无双”且该角色防具无效，直到回合结束。
 	引用：LuaWuqian
-	状态：1217验证通过
+	状态：0405验证通过
 ]]--
 LuaWuqianCard = sgs.CreateSkillCard{
 	name = "LuaWuqianCard" ,
 	filter = function(self, targets, to_select)
-		return (#targets == 0) and (to_select:objectName() ~= sgs.Self:objectName())
+		return #targets == 0 and to_select:objectName() ~= sgs.Self:objectName()
 	end ,
 	on_effect = function(self, effect)
 		local room = effect.to:getRoom()
@@ -353,7 +312,7 @@ LuaWuqianCard = sgs.CreateSkillCard{
 		room:addPlayerMark(effect.to, "Armor_Nullified")
 	end
 }
-LuaWuqianVS = sgs.CreateViewAsSkill{
+LuaWuqianVS = sgs.CreateZeroCardViewAsSkill{
 	name = "LuaWuqian" ,
 	view_as = function()
 		return LuaWuqianCard:clone()
@@ -366,7 +325,11 @@ LuaWuqian = sgs.CreateTriggerSkill{
 	name = "LuaWuqian" ,
 	events = {sgs.EventPhaseChanging, sgs.Death} ,
 	view_as_skill = LuaWuqianVS ,
+	can_trigger = function(self, target)
+		return target and target:hasFlag("LuaWuqianSource")
+	end,
 	on_trigger = function(self, event, player, data)
+		local room = player:getRoom()
 		if event == sgs.EventPhaseChanging then
 			local change = data:toPhaseChange()
 			if change.to ~= sgs.Player_NotActive then
@@ -379,27 +342,25 @@ LuaWuqian = sgs.CreateTriggerSkill{
 				return false
 			end
 		end
-		for _, p in sgs.qlist(player:getRoom():getAllPlayers()) do
+		for _, p in sgs.qlist(room:getAllPlayers()) do
 			if p:hasFlag("WuqianTarget") then
 				p:setFlags("-WuqianTarget")
 				if p:getMark("Armor_Nullified") then
-					player:getRoom():removePlayerMark(p, "Armor_Nullified")
+					room:removePlayerMark(p, "Armor_Nullified")
 				end
 			end
 		end
-		player:getRoom():detachSkillFromPlayer(player, "wushuang")
+		room:detachSkillFromPlayer(player, "wushuang", false, true)
 		return false
-	end,
-	can_trigger = function(self, target)
-		return target and target:hasFlag("LuaWuqianSource")
 	end
 }
 --[[
 	技能名：无双（锁定技）
-	相关武将：标准·吕布、SP·最强神话、SP·暴怒战神、SP·台版吕布
+	相关武将：界限突破·吕布、标准·吕布、SP·最强神话、SP·暴怒战神、SP·台版吕布
 	描述：当你使用【杀】指定一名角色为目标后，该角色需连续使用两张【闪】才能抵消；与你进行【决斗】的角色每次需连续打出两张【杀】。
 	引用：LuaWushuang
-	状态：1217验证通过
+	状态：0405验证通过
+	备注：与源码略有不同，体验感稍差
 ]]--
 Table2IntList = function(theTable)
 	local result = sgs.IntList()
@@ -411,26 +372,26 @@ end
 LuaWushuang = sgs.CreateTriggerSkill{
 	name = "LuaWushuang" ,
 	frequency = sgs.Skill_Compulsory ,
-	events = {sgs.TargetConfirmed,sgs.CardEffected } ,
+	events = {sgs.TargetSpecified,sgs.CardEffected } ,
 	on_trigger = function(self, event, player, data)
 		local room = player:getRoom()
-		if event == sgs.TargetConfirmed then
+		if event == sgs.TargetSpecified then
 			local use = data:toCardUse()
-			local can_invoke = false
-			if use.card:isKindOf("Slash") and (player and player:isAlive() and player:hasSkill(self:objectName())) and (use.from:objectName() == player:objectName()) then
-				can_invoke = true
-				local jink_table = sgs.QList2Table(player:getTag("Jink_" .. use.card:toString()):toIntList())
+			if use.card:isKindOf("Slash") and player and player:isAlive() and player:hasSkill(self:objectName()) then
+				room:sendCompulsoryTriggerLog(player, self:objectName())
+				local jink_list = sgs.QList2Table(player:getTag("Jink_" .. use.card:toString()):toIntList())
 				for i = 0, use.to:length() - 1, 1 do
-					if jink_table[i + 1] == 1 then
-						jink_table[i + 1] = 2 --只要设置出两张闪就可以了，不用两次askForCard
+					if jink_list[i + 1] == 1 then
+						jink_list[i + 1] = 2
 					end
 				end
 				local jink_data = sgs.QVariant()
-				jink_data:setValue(Table2IntList(jink_table))
+				jink_data:setValue(Table2IntList(jink_list))
 				player:setTag("Jink_" .. use.card:toString(), jink_data)
 			end
 		elseif event == sgs.CardEffected then
 			local effect = data:toCardEffect()
+			local can_invoke = false
 			if effect.card:isKindOf("Duel") then				
 				if effect.from and effect.from:isAlive() and effect.from:hasSkill(self:objectName()) then
 					can_invoke = true
@@ -442,13 +403,13 @@ LuaWushuang = sgs.CreateTriggerSkill{
 			if not can_invoke then return false end
 			if effect.card:isKindOf("Duel") then
 				if room:isCanceled(effect) then
-                    effect.to:setFlags("Global_NonSkillNullify")
-                    return true;
-                end
-                if effect.to:isAlive() then
+					effect.to:setFlags("Global_NonSkillNullify")
+					return true;
+				end
+				if effect.to:isAlive() then
 					local second = effect.from
 					local first = effect.to
-                    room:setEmotion(first, "duel");
+					room:setEmotion(first, "duel");
 					room:setEmotion(second, "duel")
 					while true do
 						if not first:isAlive() then
@@ -489,8 +450,7 @@ LuaWushuang = sgs.CreateTriggerSkill{
 	end ,
 	can_trigger = function(self, target)
 		return target
-	end,
-	priority = 1,
+	end
 }
 --[[
 	技能名：无言（锁定技）
@@ -643,153 +603,121 @@ LuaWuling = sgs.CreateTriggerSkill{
 --[[
 	技能名：武魂（锁定技）
 	相关武将：神·关羽
-	描述：每当你受到1点伤害后，伤害来源获得一枚“梦魇”标记；你死亡时，令拥有最多该标记的一名其他角色进行一次判定，若判定结果不为【桃】或【桃园结义】，该角色死亡。
-	引用：LuaWuhun、LuaWuhunRevenge、LuaWuhunClear
-	状态：1217验证通过
+	描述：每当你受到伤害扣减体力前，伤害来源获得等于伤害点数的“梦魇”标记。你死亡时，你选择一名存活的“梦魇”标记数最多（不为0）的角色，该角色进行判定：若结果不为【桃】或【桃园结义】，该角色死亡。 
+	引用：LuaWuhun、LuaWuhunRevenge
+	状态：0405验证通过
 ]]--
 LuaWuhun = sgs.CreateTriggerSkill{
 	name = "LuaWuhun" ,
-	events = {sgs.Damaged} ,
-	frequency = sgs.Skill_Compulsory ,
+	events = {sgs.PreDamageDone},
+	frequency = sgs.Skill_Compulsory,
 	on_trigger = function(self, event, player, data)
 		local damage = data:toDamage()
-		if damage.from and (damage.from:objectName() ~= player:objectName()) then
+		local room = player:getRoom()
+		if damage.from and damage.from:objectName() ~= player:objectName() then
 			damage.from:gainMark("@nightmare", damage.damage)
+			room:notifySkillInvoked(player, self:objectName())
 		end
+		return false
 	end
 }
 LuaWuhunRevenge = sgs.CreateTriggerSkill{
 	name = "#LuaWuhun" ,
-	events = {sgs.Death} ,
-	on_trigger = function(self, event, player, data)
-		local room = player:getRoom()
+	events = {sgs.Death},
+	can_trigger = function(self, target)
+		return target ~= nil and target:hasSkill("LuaWuhun");
+	end ,
+	on_trigger = function(self, event, shenguanyu, data)
 		local death = data:toDeath()
-		if death.who:objectName() ~= player:objectName() then return false end
-		local players = room:getOtherPlayers(player)
-		local _max = 0
-		for _, _player in sgs.qlist(players) do
-			_max = math.max(_max, _player:getMark("@nightmare"))
+		local room = shenguanyu:getRoom()
+		if death.who:objectName() ~= shenguanyu:objectName() then
+			return false
 		end
-		if _max == 0 then return false end
+		local players = room:getOtherPlayers(shenguanyu)
+		local max = 0
+		for _, player in sgs.qlist(players) do
+			max = math.max(max, player:getMark("@nightmare"))
+		end
+		if max == 0 then return false end
 		local foes = sgs.SPlayerList()
-		for _, _player in sgs.qlist(players) do
-			if _player:getMark("@nightmare") == _max then
-				foes:append(_player)
+		for _, player in sgs.qlist(players) do
+			if player:getMark("@nightmare") == max then
+				foes:append(player)
 			end
 		end
-		if foes:isEmpty() then return false end
+		if foes:isEmpty() then
+			return false
+		end
 		local foe
 		if foes:length() == 1 then
 			foe = foes:first()
 		else
-			foe = room:askForPlayerChosen(player, foes, self:objectName(), "@wuhun-revenge")
+			foe = room:askForPlayerChosen(shenguanyu, foes, "wuhun", "@wuhun-revenge")
 		end
+		room:notifySkillInvoked(shenguanyu, "wuhun")
 		local judge = sgs.JudgeStruct()
 		judge.pattern = "Peach,GodSalvation"
 		judge.good = true
-		judge.reason = "LuaWuhun"
+		judge.negative = true
+		judge.reason = "wuhun"
 		judge.who = foe
 		room:judge(judge)
 		if judge:isBad() then
 			room:killPlayer(foe)
 		end
 		local killers = room:getAllPlayers()
-		for _, _player in sgs.qlist(killers) do
-			_player:loseAllMarks("@nightmare")
+		for _, player in sgs.qlist(killers) do
+			player:loseAllMarks("@nightmare")
 		end
 		return false
-	end ,
-	can_trigger = function(self, target)
-		return target and target:hasSkill("LuaWuhun")
 	end
-}
-LuaWuhunClear = sgs.CreateTriggerSkill{
-	name = "LuaWuhun-clear" ,
-	events = {sgs.EventLoseSkill} ,
-	on_trigger = function(self, event, player, data)
-		if data:toString() == "LuaWuhun" then
-			for _, p in sgs.qlist(player:getRoom():getAllPlayers()) do
-				p:loseAllMarks("@nightmare")
-			end
-		end
-	end ,
-	can_trigger = function(self, target)
-		return target
-	end ,
 }
 --[[
 	技能名：武继（觉醒技）
 	相关武将：SP·关银屏
-	描述：结束阶段开始时，若你于此回合内已造成3点或更多伤害，你加1点体力上限，回复1点体力，然后失去技能“虎啸”。
-	引用：LuaWujiCount、LuaWuji
-	状态：1217验证通过
+	描述：结束阶段开始时，若你于本回合造成了至少3点伤害，你增加1点体力上限，回复1点体力，然后失去“虎啸”。 
+	引用：LuaWuji
+	状态：0405验证通过
 ]]--
-LuaWujiCount = sgs.CreateTriggerSkill{
-	name = "#LuaWuji-count" ,
-	events = {sgs.PreDamageDone, sgs.EventPhaseChanging} ,
-	on_trigger = function(self, event, player, data)
-		local room = player:getRoom()
-		if event == sgs.PreDamageDone then
-			local damage = data:toDamage()
-			if damage.from and damage.from:isAlive() and (damage.from:objectName() == room:getCurrent():objectName()) and (damage.from:getMark("LuaWuji") == 0) then
-				room:addPlayerMark(damage.from, "LuaWuji_damage", damage.damage)
-			end
-		elseif event == sgs.EventPhaseChanging then
-			local change = data:toPhaseChange()
-			if change.to == sgs.Player_NotActive then
-				if player:getMark("LuaWuji_damage") > 0 then
-					room:setPlayerMark(player, "LuaWuji_damage", 0)
-				end
-			end
-		end
-		return false
-	end ,
-	can_trigger = function(self, target)
-		return target
-	end
-}
-LuaWuji = sgs.CreateTriggerSkill{
+LuaWuji = sgs.CreatePhaseChangeSkill{
 	name = "LuaWuji",
 	frequency = sgs.Skill_Wake,
-	events = {sgs.EventPhaseStart} ,
-	on_trigger = function(self, event, player, data)
+	on_phasechange = function(self, player)
 		local room = player:getRoom()
-		room:addPlayerMark(player, "LuaWuji")
+		room:setPlayerMark(player, self:objectName(), 1)
 		if room:changeMaxHpForAwakenSkill(player, 1) then
-			local recover = sgs.RecoverStruct()
-			recover.who = player
-			room:recover(player, recover)
+			room:recover(player, sgs.RecoverStruct(player))
 			room:detachSkillFromPlayer(player, "huxiao")
 		end
 		return false
 	end ,
 	can_trigger = function(self, target)
-		return (target and target:isAlive() and target:hasSkill(self:objectName()))
-				and (target:getPhase() == sgs.Player_Finish)
-				and (target:getMark("LuaWuji") == 0)
-				and (target:getMark("LuaWuji_damage") >= 3)
+		return target and target:isAlive() and target:hasSkill(self:objectName()) and target:getPhase() == sgs.Player_Finish 
+		and target:getMark(self:objectName()) == 0 and target:getMark("damage_point_round") >= 3
 	end
 }
 --[[
 	技能名：武神（锁定技）
 	相关武将：神·关羽
-	描述：你的红桃手牌均视为【杀】；你使用红桃【杀】时无距离限制。
+	描述：你的红桃手牌视为普通【杀】。你使用红桃【杀】无距离限制。 
 	引用：LuaWushen、LuaWushenTargetMod
-	状态：1217验证通过
+	状态：0405验证通过
 ]]--
+
+
 LuaWushen = sgs.CreateFilterSkill{
-	name = "LuaWushen",	
+	name = "LuaWushen", 
 	view_filter = function(self,to_select)
 		local room = sgs.Sanguosha:currentRoom()
 		local place = room:getCardPlace(to_select:getEffectiveId())
 		return (to_select:getSuit() == sgs.Card_Heart) and (place == sgs.Player_PlaceHand)
-	end,	
-	view_as = function(self, card)
-		local slash = sgs.Sanguosha:cloneCard("Slash", card:getSuit(), card:getNumber())
+	end,
+	view_as = function(self, originalCard)
+		local slash = sgs.Sanguosha:cloneCard("slash", originalCard:getSuit(), originalCard:getNumber())
 		slash:setSkillName(self:objectName())
-		local _card = sgs.Sanguosha:getWrappedCard(card:getId())
-		_card:takeOver(slash)
-		return _card
+		local card = sgs.Sanguosha:getWrappedCard(originalCard:getId())
+		card:takeOver(slash)
+		return card
 	end
 }
 LuaWushenTargetMod = sgs.CreateTargetModSkill{
@@ -804,26 +732,27 @@ LuaWushenTargetMod = sgs.CreateTargetModSkill{
 }
 --[[
 	技能名：武圣
-	相关武将：标准·关羽、翼·关羽、2013-3v3·关羽、1v1·关羽1v1
+	相关武将：界限突破·关羽、JSP·关羽、SP·关羽、标准·关羽、翼·关羽、2013-3v3·关羽、1v1·关羽1v1
 	描述：你可以将一张红色牌当【杀】使用或打出。
 	引用：LuaWusheng
-	状态：1217验证通过
+	状态：0405验证通过
 ]]--
 LuaWusheng = sgs.CreateOneCardViewAsSkill{
 	name = "LuaWusheng",
+	response_or_use = true,
 	view_filter = function(self, card)
 		if not card:isRed() then return false end
 		if sgs.Sanguosha:getCurrentCardUseReason() == sgs.CardUseStruct_CARD_USE_REASON_PLAY then
-    		local slash = sgs.Sanguosha:cloneCard("slash", sgs.Card_SuitToBeDecided, -1)
-        	slash:addSubcard(card:getEffectiveId())
-        	slash:deleteLater()
-        	return slash:isAvailable(sgs.Self)
-    	end
-    	return true
+			local slash = sgs.Sanguosha:cloneCard("slash", sgs.Card_SuitToBeDecided, -1)
+			slash:addSubcard(card:getEffectiveId())
+			slash:deleteLater()
+			return slash:isAvailable(sgs.Self)
+		end
+		return true
 	end,
-	view_as = function(self, originalCard)
-		local slash = sgs.Sanguosha:cloneCard("slash", originalCard:getSuit(), originalCard:getNumber())
-		slash:addSubcard(originalCard:getId())
+	view_as = function(self, card)
+		local slash = sgs.Sanguosha:cloneCard("slash", card:getSuit(), card:getNumber())
+		slash:addSubcard(card:getId())
 		slash:setSkillName(self:objectName())
 		return slash
 	end,

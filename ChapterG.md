@@ -1,7 +1,7 @@
 代码速查手册（G区）
 ===
 # 技能索引
-[甘露](#甘露)、[感染](#感染)、[刚烈](#刚烈)、[刚烈-3v3](#刚烈-3v3)、[刚烈-翼](#刚烈-翼)、[弓骑](#弓骑)、[弓骑-旧](#弓骑-旧)、[攻心](#攻心)、[共谋](#共谋)、[蛊惑](#蛊惑)、[蛊惑-旧](#蛊惑-旧)、[固守](#固守)、[固政](#固政)、[观星](#观星)、[归汉](#归汉)、[归心](#归心)、[归心-倚天](#归心-倚天)、[闺秀](#闺秀)、[鬼才](#鬼才)、[鬼道](#鬼道)、[国色](#国色)
+[甘露](#甘露)、[感染](#感染)、[刚烈](#刚烈)、[刚烈-旧](#刚烈-旧)、[刚烈-3v3](#刚烈-3v3)、[刚烈-翼](#刚烈-翼)、[弓骑](#弓骑)、[弓骑-旧](#弓骑-旧)、[攻心](#攻心)、[共谋](#共谋)、[蛊惑](#蛊惑)、[蛊惑-旧](#蛊惑-旧)、[固守](#固守)、[固政](#固政)、[观星](#观星)、[归命](#归命)、[归汉](#归汉)、[归心](#归心)、[归心-倚天](#归心-倚天)、[闺秀](#闺秀)、[鬼才](#鬼才)、[鬼才-旧](#鬼才-旧)、[鬼道](#鬼道)、[国色](#国色)
 
 [返回目录](README.md#目录)
 ## 甘露
@@ -64,47 +64,87 @@
 **相关武将**：僵尸·僵尸  
 **描述**：**锁定技，**你的装备牌都视为铁锁连环。  
 **引用**：LuaXGanran  
-**状态**：1217验证通过
+**状态**：0405验证通过
 
 ```lua
-	LuaXGanran = sgs.CreateFilterSkill{
-		name = "LuaXGanran",
+	LuaGanran = sgs.CreateFilterSkill{
+		name = "LuaGanran",
 		view_filter = function(self, to_select)
 			local room = sgs.Sanguosha:currentRoom()
 			local place = room:getCardPlace(to_select:getEffectiveId())
-			if place == sgs.Player_PlaceHand then
-				return to_select:isKindOf("EquipCard")
-			end
-			return false
+			return place == sgs.Player_PlaceHand and to_select:getTypeId() == sgs.Card_TypeEquip
 		end,
 		view_as = function(self, card)
-			local id = card:getId()
-			local suit = card:getSuit()
-			local point = card:getNumber()
-			local chain = sgs.Sanguosha:cloneCard("iron_chain", suit, point)
-			chain:setSkillName(self:objectName())
-			local vs_card = sgs.Sanguosha:getWrappedCard(id)
-			vs_card:takeOver(chain)
+			local ironchain = sgs.Sanguosha:cloneCard("iron_chain", card:getSuit(), card:getNumber())
+			ironchain:setSkillName(self:objectName())
+			local vs_card = sgs.Sanguosha:getWrappedCard(card:getEffectiveId())
+			vs_card:takeOver(ironchain)
 			return vs_card
 		end,
 	}
 ```
 [返回索引](#技能索引)
 ##刚烈
-**相关武将**：标准·夏侯惇  
-**描述**：每当你受到一次伤害后，你可以进行一次判定，若判定结果不为红桃，则伤害来源选择一项：弃置两张手牌，或受到你对其造成的1点伤害。  
+**相关武将**：界限突破·夏侯惇  
+**描述**：每当你受到1点伤害后，你可以进行判定：若结果为红色，你对伤害来源造成1点伤害；黑色，你弃置伤害来源一张牌。   
 **引用**：LuaGanglie  
-**状态**：1217验证通过
+**状态**：0405验证通过
 
 ```lua
 	LuaGanglie = sgs.CreateTriggerSkill{
 		name = "LuaGanglie",
-		frequency = sgs.Skill_NotFrequent,
-		events = {sgs.Damaged},
+		events = {sgs.Damaged, sgs.FinishJudge},
+		can_trigger = function(self, target)
+			return target
+		end,
 		on_trigger = function(self, event, player, data)
 			local room = player:getRoom()
-			local damage = data:toDamage()
+			if event == sgs.Damaged and player:isAlive() and player:hasSkill(self:objectName()) then
+				local damage = data:toDamage()
+				local from = damage.from
+				for i = 0, damage.damage - 1, 1 do
+					if room:askForSkillInvoke(player, self:objectName(), data) then
+						local judge = sgs.JudgeStruct()
+						judge.pattern = "."
+						judge.play_animation = false
+						judge.reason = self:objectName()
+						judge.who = player
+						room:judge(judge)
+						if (not from) or from:isDead() then return end
+						if judge.card:isRed() then
+							room:damage(sgs.DamageStruct(self:objectName(), player, from))
+						elseif judge.card:isBlack() then
+							if player:canDiscard(from, "he") then
+								local id = room:askForCardChosen(player, from, "he", self:objectName(), false, sgs.Card_MethodDiscard)
+								room:throwCard(id, from, player)
+							end
+						end
+					end
+				end
+			elseif event == sgs.FinishJudge then
+				local judge = sgs.JudgeStruct()
+				if judge.reason ~= self:objectName() then return false end
+				judge.pattern = tostring(judge.card:getSuit())
+			end
+			return false
+		end
+	}
+```
+[返回索引](#技能索引)
+##刚烈-旧
+**相关武将**：标准·夏侯惇  
+**描述**：每当你受到伤害后，你可以进行判定：若结果不为♥，则伤害来源选择一项：弃置两张手牌，或受到1点伤害。   
+**引用**：LuaNosGanglie  
+**状态**：0405验证通过
+
+```lua
+	LuaNosGanglie = sgs.CreateMasochismSkill{
+		name = "LuaNosGanglie" ,
+		on_damaged = function(self, player, damage)
 			local from = damage.from
+			local room = player:getRoom()
+			local data = sgs.QVariant()
+			data:setValue(damage)
 			if room:askForSkillInvoke(player, self:objectName(), data) then
 				local judge = sgs.JudgeStruct()
 				judge.pattern = ".|heart"
@@ -114,12 +154,8 @@
 				room:judge(judge)
 				if (not from) or from:isDead() then return end
 				if judge:isGood() then
-					if from:getHandcardNum() < 2 then
+					if from:getHandcardNum() < 2 or not room:askForDiscard(from, self:objectName(), 2, 2, true) then
 						room:damage(sgs.DamageStruct(self:objectName(), player, from))
-					else
-						if not room:askForDiscard(from, self:objectName(), 2, 2, true) then
-							room:damage(sgs.DamageStruct(self:objectName(), player, from))
-						end
 					end
 				end
 			end
@@ -128,7 +164,7 @@
 ```
 [返回索引](#技能索引)
 ##刚烈-3v3
-**相关武将**：2013-3v3·夏侯惇    
+**相关武将**：2013-3v3·夏侯惇	
 **描述**： 每当你受到伤害后，你可以选择一名对方角色并进行一次判定，若判定结果不为♥，则该角色选择一项：弃置两张手牌，或受到你造成的1点伤害。  
 **引用**：LuaVsGanglie  
 **状态**：1217验证通过
@@ -289,12 +325,13 @@
 		view_filter = function(self, selected, to_select)
 			if to_select:getTypeId() ~= sgs.Card_TypeEquip then return false end
 			if sgs.Sanguosha:getCurrentCardUseReason() == sgs.CardUseStruct_CARD_USE_REASON_PLAY then
-			local slash = sgs.Sanguosha:cloneCard("slash",sgs.Card_SuitToBeDecided,-1)
-	            slash:addSubcard(to_select:getEffectiveId())
-	            slash:deleteLater()
-	            return slash:isAvailable(sgs.Self)
+				local slash = sgs.Sanguosha:cloneCard("slash", sgs.Card_SuitToBeDecided, -1)
+				slash:addSubcard(to_select:getEffectiveId())
+				slash:deleteLater()
+				return slash:isAvailable(sgs.Self)
 			end
-		end ,
+			return true
+		end,
 		view_as = function(self, cards)
 			if #cards == 1 then
 			local slash = sgs.Sanguosha:cloneCard("slash", cards[1]:getSuit(), cards[1]:getNumber())
@@ -323,27 +360,27 @@
 ```  
 [返回索引](#技能索引)
 ##攻心
-**相关武将**：神·吕蒙  
-**描述**：出牌阶段限一次，你可以观看一名其他角色的手牌，然后选择其中一张♥牌并选择一项：弃置之，或将之置于牌堆顶。  
+**相关武将**：神·吕蒙，界·吕蒙
+**描述**：出牌阶段限一次，你可以观看一名其他角色的手牌，然后选择其中一张红桃牌并选择一项：弃置之，或将之置于牌堆顶。
 **引用**：LuaGongxin  
-**状态**：1217验证通过
+**状态**：0405验证通过
 
 ```lua
 	LuaGongxinCard = sgs.CreateSkillCard{
 		name = "LuaGongxinCard" ,
 		filter = function(self, targets, to_select)
-			return (#targets == 0) and (to_select:objectName() ~= sgs.Self:objectName())
+			return #targets == 0 and to_select:objectName() ~= sgs.Self:objectName() --and not to_select:isKongcheng() 如果不想选择没有手牌的角色就加上这一句，源码是没有这句的
 		end ,
 		on_effect = function(self, effect)
 			local room = effect.from:getRoom()
-			if not effect.to:isKongcheng() then
+			if not effect.to:isKongcheng() then--如果加上了上面的那句，这句和对应的end可以删除
 				local ids = sgs.IntList()
 				for _, card in sgs.qlist(effect.to:getHandcards()) do
 					if card:getSuit() == sgs.Card_Heart then
 						ids:append(card:getEffectiveId())
 					end
 				end
-				local card_id = room:doGongxin(effect.from, effect.to, ids, "LuaGongxin")
+				local card_id = room:doGongxin(effect.from, effect.to, ids)
 				if (card_id == -1) then return end
 				local result = room:askForChoice(effect.from, "LuaGongxin", "discard+put")
 				effect.from:removeTag("LuaGongxin")
@@ -358,10 +395,9 @@
 				end
 			end
 		end
-	}
-	LuaGongxin = sgs.CreateViewAsSkill{
+	}	
+	LuaGongxin = sgs.CreateZeroCardViewAsSkill{
 		name = "LuaGongxin" ,
-		n = 0 ,
 		view_as = function()
 			return LuaGongxinCard:clone()
 		end ,
@@ -441,526 +477,315 @@
 ```
 [返回索引](#技能索引)
 ##蛊惑
-**相关武将**：风·于吉    
-**描述**：你可以扣置一张手牌当做一张基本牌或非延时锦囊牌使用或打出，其他角色选择是否质疑：若无角色质疑，你展示该牌，取消不合法的目标并按你所述类型结算；若有角色质疑，中止质疑询问并展示该牌：若该牌为真，该角色获得“缠怨”（锁定技。你不能质疑“蛊惑”。若你的体力值为1，你的其他武将技能无效。），取消不合法的目标并按你所述类型结算；若该牌为假，你将其置入弃牌堆。每名角色的回合限一次。     
-**引用**：guhuo_new    
-**状态**：1217验证通过(需配合本手册的缠怨一起使用)
+**相关武将**：风·于吉	
+**描述**：你可以扣置一张手牌当做一张基本牌或非延时锦囊牌使用或打出，其他角色选择是否质疑：若无角色质疑，你展示该牌，取消不合法的目标并按你所述类型结算；若有角色质疑，中止质疑询问并展示该牌：若该牌为真，该角色获得“缠怨”（锁定技。你不能质疑“蛊惑”。若你的体力值为1，你的其他武将技能无效。），取消不合法的目标并按你所述类型结算；若该牌为假，你将其置入弃牌堆。每名角色的回合限一次。	 
+**引用**：guhuo_new	
+**状态**：0405验证通过(需配合本手册的缠怨一起使用)
 
 ```lua
-	function Set(list)
-		local set = {}
-		for _, l in ipairs(list) do set[l] = true end
-		return set
-	end
-	local patterns = {"slash", "jink", "peach", "analeptic", "nullification", "snatch", "dismantlement", "collateral", "ex_nihilo", "duel", "fire_attack", "amazing_grace", "savage_assault", "archery_attack", "god_salvation", "iron_chain"}
-	if not (Set(sgs.Sanguosha:getBanPackages()))["maneuvering"] then
-		table.insert(patterns, 2, "thunder_slash")
-		table.insert(patterns, 2, "fire_slash")
-		table.insert(patterns, 2, "normal_slash")
-	end
-	local slash_patterns = {"slash", "normal_slash", "thunder_slash", "fire_slash"}
-	function getPos(table, value)
-		for i, v in ipairs(table) do
-			if v == value then
-				return i
-			end
-		end
-		return 0
-	end
-	local pos = 0
-	guhuo_select = sgs.CreateSkillCard {
-		name = "guhuo_select",
-		will_throw = false,
-		handling_method = sgs.Card_MethodNone,
-		target_fixed = true,
-		on_use = function(self, room, source, targets)
-			local type = {}
-			local basic = {}
-			local sttrick = {}
-			local mttrick = {}
-			for _, cd in ipairs(patterns) do
-				local card = sgs.Sanguosha:cloneCard(cd, sgs.Card_NoSuit, 0)
-				if card then
-					card:deleteLater()
-					if card:isAvailable(source) then
-						if card:getTypeId() == sgs.Card_TypeBasic then
-							table.insert(basic, cd)
-						elseif card:isKindOf("SingleTargetTrick") then
-							table.insert(sttrick, cd)
-						else
-							table.insert(mttrick, cd)
-						end
-						if cd == "slash" then
-							table.insert(basic, "normal_slash")
-						end
-					end
-				end
-			end
-			if #basic ~= 0 then table.insert(type, "basic") end
-			if #sttrick ~= 0 then table.insert(type, "single_target_trick") end
-			if #mttrick ~= 0 then table.insert(type, "multiple_target_trick") end
-			local typechoice = ""
-			if #type > 0 then
-				typechoice = room:askForChoice(source, "guhuo_new", table.concat(type, "+"))
-			end
-			local choices = {}
-			if typechoice == "basic" then
-				choices = table.copyFrom(basic)
-			elseif typechoice == "single_target_trick" then
-				choices = table.copyFrom(sttrick)
-			elseif typechoice == "multiple_target_trick" then
-				choices = table.copyFrom(mttrick)
-			end
-			local pattern = room:askForChoice(source, "guhuo-new", table.concat(choices, "+"))
-			if pattern then
-				if string.sub(pattern, -5, -1) == "slash" then
-					pos = getPos(slash_patterns, pattern)
-					room:setPlayerMark(source, "GuhuoSlashPos", pos)
-				end
-				pos = getPos(patterns, pattern)
-				room:setPlayerMark(source, "GuhuoPos", pos)
-				room:askForUseCard(source, "@guhuo_new", "@@guhuo_new")
-			end
-		end,	
-	}
-	function questionOrNot(player)
-		local room = player:getRoom()
-		local yuji = room:findPlayerBySkillName("guhuo_new")
-		local guhuoname = room:getTag("GuhuoType"):toString()
-		if guhuoname == "peach+analeptic" then guhuoname = "peach" end
-		if guhuoname == "normal_slash" then guhuoname = "slash" end
-		local guhuocard = sgs.Sanguosha:cloneCard(guhuoname, sgs.Card_NoSuit, 0)
-		local guhuotype = guhuocard:getClassName()
-		if guhuotype and guhuotype == "AmazingGrace" then return "noquestion" end
-		if guhuotype:match("Slash") then
-			if yuji:getState() ~= "robot" and math.random(1, 4) == 1 and not sgs.questioner then return "question" end
-		end
-		if math.random(1, 6) == 1 and player:getHp() >= 3 and player:getHp() > player:getLostHp() then return "question" end
-		local players = room:getOtherPlayers(player)
-		players = sgs.QList2Table(players)
-		local x = math.random(1, 5)
-		if sgs.questioner then return "noquestion" end
-		local questioner = room:getOtherPlayers(player):at(0)
-		return player:objectName() == questioner:objectName() and x ~= 1 and "question" or "noquestion"
-	end
 	function guhuo(self, yuji)
-		local room = yuji:getRoom()
-		local players = room:getOtherPlayers(yuji)	
-		local used_cards = sgs.IntList()
-		local moves = sgs.CardsMoveList()
-		for _, card_id in sgs.qlist(self:getSubcards()) do
-			used_cards:append(card_id)
-		end		
-		local questioned = sgs.SPlayerList()
-		for _, p  in sgs.qlist(players) do
-			if p:hasSkill("LuaChanyuan") then
-				local log = sgs.LogMessage()
-				log.type = "#LuaChanyuan"
-				log.from = yuji
-				log.to:append(p)
-				log.arg = "LuaChanyuan"
-				room:sendLog(log)				
-				room:notifySkillInvoked(p, "LuaChanyuan")
-				room:setEmotion(p, "no-question")
-			else
-				local choice = "noquestion"
-				if p:getState() == "online" then
-					choice = room:askForChoice(p, "guhuo", "noquestion+question")
-				else
-					room:getThread():delay(sgs.GetConfig("OriginAIDelay", ""))
-					choice = questionOrNot(p)
-				end
-				if choice == "question" then
-					sgs.questioner = p
-					room:setEmotion(p, "question")
-					questioned:append(p)
-					local log = sgs.LogMessage()
-					log.type = "#GuhuoQuery"
-					log.from = p
-					log.arg = choice
-					room:sendLog(log)
-					break
-				else
-					room:setEmotion(p, "no-question")
-					local log = sgs.LogMessage()
-					log.type = "#GuhuoQuery"
-					log.from = p
-					log.arg = choice
-					room:sendLog(log)
-				end			
-			end
+	local room = yuji:getRoom()
+	local players = room:getOtherPlayers(yuji)
+	local used_cards = sgs.IntList()
+	local moves = sgs.CardsMoveList()
+	for _, card_id in sgs.qlist(self:getSubcards()) do
+		used_cards:append(card_id)
+	end
+	--room:setTag("GuhuoType", self:getUserString())
+	local questioned = nil
+	for _, player in sgs.qlist(players) do
+		if player:hasSkill("LuaChanyuan") then
+			room:notifySkillInvoked(player, "LuaChanyuan")
+			room:setEmotion(player, "no-question")
+			continue
 		end
-		room:removeTag("GuhuoType")
-		local log = sgs.LogMessage()
-		log.type = "$GuhuoResult"
-		log.from = yuji
-		local subcards = self:getSubcards()
-		log.card_str = tostring(subcards:first())
-		room:sendLog(log)
-		local success = false
-		if questioned:isEmpty() then
-			success = true
-			for _, p in sgs.qlist(players) do
-				room:setEmotion(p, ".")
-			end			
-			local reason = sgs.CardMoveReason(sgs.CardMoveReason_S_REASON_USE, yuji:objectName(), "", "guhuo")
-			local move = sgs.CardsMoveStruct()
-			move.card_ids = used_cards
-			move.from = yuji
-			move.to = nil
-			move.to_place = sgs.Player_PlaceTable
-			move.reason = reason
+		local choice = room:askForChoice(player, "LuaGuhuo", "noquestion+question")
+		if choice == "question" then
+			room:setEmotion(player, "question")
+		else
+			room:setEmotion(player, "no-question")
+		end
+		if choice == "question" then
+			questioned = player
+			break
+		end
+	end
+	local success = false
+	if not questioned then
+		success = true
+		for _, player in sgs.qlist(players) do
+			room:setEmotion(player, ".")
+		end
+		local reason = sgs.CardMoveReason(sgs.CardMoveReason_S_REASON_USE, yuji:objectName(), "", "LuaGuhuo")
+		local move = sgs.CardsMoveStruct(used_cards, yuji, nil, sgs.Player_PlaceUnknown, sgs.Player_PlaceTable, reason)
+		moves:append(move)
+		room:moveCardsAtomic(moves, true)
+	else
+		local card = sgs.Sanguosha:getCard(self:getSubcards():first())
+		if self:getUserString() and self:getUserString() == "peach+analeptic" then
+			success = card:objectName() == yuji:getTag("GuhuoSaveSelf"):toString()
+		elseif self:getUserString() and self:getUserString() == "slash" then
+			success = string.find(card:objectName(),"slash")
+		elseif self:getUserString() and self:getUserString() == "normal_slash" then
+			success = card:objectName() == "slash"
+		else
+			success = card:match(self:getUserString())
+		end
+		if success then
+			local reason = sgs.CardMoveReason(sgs.CardMoveReason_S_REASON_USE, yuji:objectName(), "", "LuaGuhuo")
+			local move = sgs.CardsMoveStruct(used_cards, yuji, nil, sgs.Player_PlaceUnknown, sgs.Player_PlaceTable, reason)
 			moves:append(move)
 			room:moveCardsAtomic(moves, true)
 		else
-			local card = sgs.Sanguosha:getCard(subcards:first())
-			local user_string = self:getUserString()
-			if user_string == "peach+analeptic" then
-				success = card:objectName() == yuji:getTag("GuhuoSaveSelf"):toString()
-			elseif user_string == "slash" then
-				success = string.sub(card:objectName(), -5, -1) == "slash"
-			elseif user_string == "normal_slash" then
-				success = card:objectName() == "slash"
-			else
-				success = card:match(user_string)
-			end			
-			if success then
-				local reason = sgs.CardMoveReason(sgs.CardMoveReason_S_REASON_USE, yuji:objectName(), "", "guhuo")
-				local move = sgs.CardsMoveStruct()
-				move.card_ids = used_cards
-				move.from = yuji
-				move.to = nil
-				move.to_place = sgs.Player_PlaceTable
-				move.reason = reason
-				moves:append(move)
-				room:moveCardsAtomic(moves, true)
-			else
-				room:moveCardTo(self, yuji, nil, sgs.Player_DiscardPile, sgs.CardMoveReason(sgs.CardMoveReason_S_REASON_PUT, yuji:objectName(), "", "guhuo"), true)
-			end
-			for _, p in sgs.qlist(players) do
-				room:setEmotion(p, ".")
-			end
-			if success then
-				for _, p in sgs.qlist(questioned) do
-					room:acquireSkill(p, "LuaChanyuan")
-				end
+			room:moveCardTo(self, yuji, nil, sgs.Player_DiscardPile, sgs.CardMoveReason(sgs.CardMoveReason_S_REASON_PUT, yuji:objectName(), "", "LuaGuhuo"), true)
+		end
+		for _, player in sgs.qlist(players) do
+			room:setEmotion(player, ".")
+			if success and questioned:objectName() == player:objectName() then
+				room:acquireSkill(questioned, "LuaChanyuan")
 			end
 		end
-		yuji:removeTag("GuhuoSaveSelf")
-		room:setPlayerFlag(yuji, "GuhuoUsed")
-		return success
 	end
-	guhuo_newCard = sgs.CreateSkillCard {
-		name = "guhuo_new",
-		will_throw = false,
-		handling_method = sgs.Card_MethodNone,
-		player = nil,
-		on_use = function(self, room, source)
-			player = source
-		end,
-		filter = function(self, targets, to_select, player)
-			if sgs.Sanguosha:getCurrentCardUseReason() == sgs.CardUseStruct_CARD_USE_REASON_RESPONSE_USE and sgs.Sanguosha:getCurrentCardUsePattern() ~= "@guhuo_new" then
-				local card = nil
-				if self:getUserString() ~= "" then
-					card = sgs.Sanguosha:cloneCard(self:getUserString():split("+")[1])
-					card:setSkillName("guhuo")
-				end
-				if card and card:targetFixed() then
-					return false
-				end
-				local qtargets = sgs.PlayerList()
-				for _, p in ipairs(targets) do
-					qtargets:append(p)
-				end
-				return card and card:targetFilter(qtargets, to_select, sgs.Self) and not sgs.Self:isProhibited(to_select, card, qtargets)
-			elseif sgs.Sanguosha:getCurrentCardUseReason() == sgs.CardUseStruct_CARD_USE_REASON_RESPONSE then
-				return false
-			end		
-			local pattern = patterns[player:getMark("GuhuoPos")]
-			if pattern == "normal_slash" then pattern = "slash" end
-			local card = sgs.Sanguosha:cloneCard(pattern, sgs.Card_SuitToBeDecided, -1)
-			card:setSkillName("guhuo")
-			if card and card:targetFixed() then
-				return false
-			end
-			local qtargets = sgs.PlayerList()
-			for _, p in ipairs(targets) do
-				qtargets:append(p)
-			end
-			return card and card:targetFilter(qtargets, to_select, sgs.Self) and not sgs.Self:isProhibited(to_select, card, qtargets)
-		end,	
-		target_fixed = function(self)
-			if sgs.Sanguosha:getCurrentCardUseReason() == sgs.CardUseStruct_CARD_USE_REASON_RESPONSE_USE and sgs.Sanguosha:getCurrentCardUsePattern() ~= "@guhuo_new" then
-				local card = nil
-				if self:getUserString() ~= "" then
-					card = sgs.Sanguosha:cloneCard(self:getUserString():split("+")[1])
-				end
-				return card and card:targetFixed()
-			elseif sgs.Sanguosha:getCurrentCardUseReason() == sgs.CardUseStruct_CARD_USE_REASON_RESPONSE then
-				return true
-			end		
-			local pattern = patterns[player:getMark("GuhuoPos")]
-			if pattern == "normal_slash" then pattern = "slash" end
-			local card = sgs.Sanguosha:cloneCard(pattern, sgs.Card_SuitToBeDecided, -1)
-			return card and card:targetFixed()
-		end,	
-		feasible = function(self, targets)
-			if sgs.Sanguosha:getCurrentCardUseReason() == sgs.CardUseStruct_CARD_USE_REASON_RESPONSE_USE and sgs.Sanguosha:getCurrentCardUsePattern() ~= "@guhuo_new" then
-				local card = nil
-				if self:getUserString() ~= "" then
-					card = sgs.Sanguosha:cloneCard(self:getUserString():split("+")[1])
-					card:setSkillName("guhuo")
-				end
-				local qtargets = sgs.PlayerList()
-				for _, p in ipairs(targets) do
-					qtargets:append(p)
-				end
-				return card and card:targetsFeasible(qtargets, sgs.Self)
-			elseif sgs.Sanguosha:getCurrentCardUseReason() == sgs.CardUseStruct_CARD_USE_REASON_RESPONSE then
-				return true
-			end		
-			local pattern = patterns[sgs.Self:getMark("GuhuoPos")]
-			if pattern == "normal_slash" then pattern = "slash" end
-			local card = sgs.Sanguosha:cloneCard(pattern, sgs.Card_SuitToBeDecided, -1)
-			card:setSkillName("guhuo")
-			local qtargets = sgs.PlayerList()
-			for _, p in ipairs(targets) do
-				qtargets:append(p)
-			end
-			return card and card:targetsFeasible(qtargets, sgs.Self)
-		end,	
-		on_validate = function(self, card_use)
-			local yuji = card_use.from
-			local room = yuji:getRoom()		
-			local to_guhuo = self:getUserString()		
-			if to_guhuo == "slash" and sgs.Sanguosha:getCurrentCardUseReason() == sgs.CardUseStruct_CARD_USE_REASON_RESPONSE_USE and sgs.Sanguosha:getCurrentCardUsePattern() ~= "@guhuo_new" then
-				local guhuo_list = {}
-				table.insert(guhuo_list, "slash")
-				if not (Set(sgs.Sanguosha:getBanPackages()))["maneuvering"] then
-					table.insert(guhuo_list, "normal_slash")
-					table.insert(guhuo_list, "thunder_slash")
-					table.insert(guhuo_list, "fire_slash")
-				end
-				to_guhuo = room:askForChoice(yuji, "guhuo_slash", table.concat(guhuo_list, "+"))
-				pos = getPos(slash_patterns, to_guhuo)
-				room:setPlayerMark(yuji, "GuhuoSlashPos", pos)
-			end
-			room:broadcastSkillInvoke("guhuo")		
-			local log = sgs.LogMessage()
-			if card_use.to:isEmpty() then
-				log.type = "#GuhuoNoTarget"
-			else
-				log.type = "#Guhuo"
-			end
-			log.from = yuji
-			log.to = card_use.to
-			log.arg = to_guhuo
-			log.arg2 = "guhuo"		
-			room:sendLog(log)		
-			room:setTag("GuhuoType", sgs.QVariant(self:getUserString()))		
-			if guhuo(self, yuji) then
-				local subcards = self:getSubcards()
-				local card = sgs.Sanguosha:getCard(subcards:first())
-				local user_str
-				if to_guhuo == "slash"  then
-					if card:isKindOf("Slash") then
-						user_str = card:objectName()
-					else
-						user_str = "slash"
-					end
-				elseif to_guhuo == "normal_slash" then
-					user_str = "slash"
-				else
-					user_str = to_guhuo
-				end
-				local use_card = sgs.Sanguosha:cloneCard(user_str, card:getSuit(), card:getNumber())
-				use_card:setSkillName("guhuo")
-				use_card:addSubcard(card)
-				use_card:deleteLater()			
-				local tos = card_use.to
-				for _, to in sgs.qlist(tos) do
-					local skill = room:isProhibited(card_use.from, to, use_card)
-					if skill then
-						local log = sgs.LogMessage()
-						log.type = "#SkillAvoid"
-						log.from = to
-						log.arg = skill:objectName()
-						log.arg2 = use_card:objectName()
-						room:sendLog(log)					
-						room:broadcastSkillInvoke(skill:objectName())
-						card_use.to:removeOne(to)
-					end
-				end
-				return use_card
-			else
-				return nil
-			end
-		end,
-		on_validate_in_response = function(self, yuji)
-			local room = yuji:getRoom()
-			room:broadcastSkillInvoke("guhuo")		
-			local to_guhuo
-			if self:getUserString() == "peach+analeptic" then
-				local guhuo_list = {}
-				table.insert(guhuo_list, "peach")
-				if not (Set(sgs.Sanguosha:getBanPackages()))["maneuvering"] then
-					table.insert(guhuo_list, "analeptic")
-				end
-				to_guhuo = room:askForChoice(yuji, "guhuo_saveself", table.concat(guhuo_list, "+"))
-				yuji:setTag("GuhuoSaveSelf", sgs.QVariant(to_guhuo))
-			elseif self:getUserString() == "slash" then
-				local guhuo_list = {}
-				table.insert(guhuo_list, "slash")
-				if not (Set(sgs.Sanguosha:getBanPackages()))["maneuvering"] then
-					table.insert(guhuo_list, "normal_slash")
-					table.insert(guhuo_list, "thunder_slash")
-					table.insert(guhuo_list, "fire_slash")
-				end
-				to_guhuo = room:askForChoice(yuji, "guhuo_slash", table.concat(guhuo_list, "+"))
-				pos = getPos(slash_patterns, to_guhuo)
-				room:setPlayerMark(yuji, "GuhuoSlashPos", pos)
-			else
-				to_guhuo = self:getUserString()
-			end		
-			local log = sgs.LogMessage()
-			log.type = "#GuhuoNoTarget"
-			log.from = yuji
-			log.arg = to_guhuo
-			log.arg2 = "guhuo"
-			room:sendLog(log)		
-			room:setTag("GuhuoType", sgs.QVariant(self:getUserString()))		
-			if guhuo(self, yuji) then
-				local subcards = self:getSubcards()
-				local card = sgs.Sanguosha:getCard(subcards:first())
-				local user_str
-				if to_guhuo == "slash" then
-					if card:isKindOf("Slash") then
-						user_str = card:objectName()
-					else
-						user_str = "slash"
-					end
-				elseif to_guhuo == "normal_slash" then
-					user_str = "slash"
-				else
-					user_str = to_guhuo
-				end
-				local use_card = sgs.Sanguosha:cloneCard(user_str, card:getSuit(), card:getNumber())
-				use_card:setSkillName("guhuo")
-				use_card:addSubcard(subcards:first())
-				use_card:deleteLater()
-				return use_card
-			else
-				return nil
-			end
+	yuji:removeTag("GuhuoSaveSelf")
+	yuji:removeTag("GuhuoSlash")
+	room:setPlayerFlag(yuji, "GuhuoUsed")
+	return success
+end
+LuaGuhuoCard = sgs.CreateSkillCard {
+	name = "LuaGuhuoCard",
+    will_throw = false,
+	handling_method = sgs.Card_MethodNone,
+	filter = function(self, targets, to_select)
+		local players = sgs.PlayerList()
+		for i = 1 , #targets do
+			players:append(targets[i])
 		end
-	}
-	guhuo_newVS = sgs.CreateViewAsSkill {
-		name = "guhuo_new",	
-		n = 1,	
-		case = nil,	
-		enabled_at_response = function(self, player, pattern)
-			case = "response"
-			local current = false
-			local players = player:getSiblings()
-			players:append(player)
-			for _, p in sgs.qlist(players) do
-				if p:isAlive() and p:getPhase() ~= sgs.Player_NotActive then
-					current = true
-					break
-				end
+		if sgs.Sanguosha:getCurrentCardUseReason() == sgs.CardUseStruct_CARD_USE_REASON_RESPONSE_USE then
+			local card = nil
+			if self:getUserString() and self:getUserString() ~= "" then
+				card = sgs.Sanguosha:cloneCard(self:getUserString():split("+")[1])
+				return card and card:targetFilter(players, to_select, sgs.Self) and not sgs.Self:isProhibited(to_select, card, players)
 			end
-			if not current then return false end		
-			if pattern == "@guhuo_new" then
-				return not player:isKongcheng() and not player:hasFlag("GuhuoUsed")
-			end		
-			if player:isKongcheng() or player:hasFlag("GuhuoUsed") or string.sub(pattern, 1, 1) == "." or string.sub(pattern, 1, 1) == "@" then
-				return false
-			end
-			if pattern == "peach" and player:hasFlag("Global_PreventPeach") then return false end
-			return true
-		end,	
-		enabled_at_play = function(self, player)
-			case = "play"
-			local current = false
-			local players = player:getSiblings()
-			players:append(player)
-			for _, p in sgs.qlist(players) do
-				if p:isAlive() and p:getPhase() ~= sgs.Player_NotActive then
-					current = true
-					break
-				end
-			end
-			if not current then return false end
-			return not player:isKongcheng() and not player:hasFlag("GuhuoUsed")
-		end,	
-		view_filter = function(self, selected, to_select)
-			return not to_select:isEquipped()
-		end,
-		view_as = function(self, cards)
-			if sgs.Sanguosha:getCurrentCardUseReason() == sgs.CardUseStruct_CARD_USE_REASON_RESPONSE or sgs.Sanguosha:getCurrentCardUseReason() == sgs.CardUseStruct_CARD_USE_REASON_RESPONSE_USE then
-				if sgs.Sanguosha:getCurrentCardUsePattern() == "@guhuo_new" then
-					local pattern = patterns[sgs.Self:getMark("GuhuoPos")]
-					if pattern == "normal_slash" then pattern = "slash" end
-					local c = sgs.Sanguosha:cloneCard(pattern, sgs.Card_SuitToBeDecided, -1)
-					if c and #cards == 1 then
-						c:deleteLater()
-						local card = guhuo_newCard:clone()
-						if not string.find(c:objectName(), "slash") then
-							card:setUserString(c:objectName())
-						else
-							card:setUserString(slash_patterns[sgs.Self:getMark("GuhuoSlashPos")])
-						end
-						card:addSubcard(cards[1])
-						return card
-					else
-						return nil
-					end
-				elseif #cards == 1 then
-					local card = guhuo_newCard:clone()
-					card:setUserString(sgs.Sanguosha:getCurrentCardUsePattern())
-					card:addSubcard(cards[1])
-					return card
-				else
-					return nil
-				end
-			elseif #cards == 0 then
-				local cd = guhuo_select:clone()
-				return cd
-			end
-		end,	
-		enabled_at_nullification = function(self, player)
-			case = "nullification"
-			local current = player:getRoom():getCurrent()
-			if not current or current:isDead() or current:getPhase() == sgs.Player_NotActive then return false end
-			return not player:isKongcheng() and not player:hasFlag("GuhuoUsed")
-		end
-	}
-	guhuo_new = sgs.CreateTriggerSkill {
-		name = "guhuo_new",
-		events = {sgs.EventPhaseChanging},
-		view_as_skill = guhuo_newVS,	
-		can_trigger = function(self, target)
-			return target
-		end,	
-		on_trigger = function(self, triggerEvent, player, data)
-			local room = player:getRoom()
-			local change = data:toPhaseChange()
-			if change.to == sgs.Player_NotActive then
-				for _, p in sgs.qlist(room:getAlivePlayers()) do
-					if p:hasFlag("GuhuoUsed") then
-						room:setPlayerFlag(p, "-GuhuoUsed")
-					end
-				end
-			end
+		elseif sgs.Sanguosha:getCurrentCardUseReason() == sgs.CardUseStruct_CARD_USE_REASON_RESPONSE then
 			return false
 		end
-	}
-```
+		local _card = sgs.Self:getTag("LuaGuhuo"):toCard()
+		if _card == nil then
+			return false
+		end
+		local card = sgs.Sanguosha:cloneCard(_card)
+		card:setCanRecast(false)
+		card:deleteLater()
+		return card and card:targetFilter(players, to_select, sgs.Self) and not sgs.Self:isProhibited(to_select, card, players)
+	end ,
+	feasible = function(self, targets)
+		local players = sgs.PlayerList()
+		for i = 1 , #targets do
+			players:append(targets[i])
+		end
+		if sgs.Sanguosha:getCurrentCardUseReason() == sgs.CardUseStruct_CARD_USE_REASON_RESPONSE_USE then
+			local card = nil
+			if self:getUserString() and self:getUserString() ~= "" then
+				card = sgs.Sanguosha:cloneCard(self:getUserString():split("+")[1])
+				return card and card:targetsFeasible(players, sgs.Self)
+			end
+		elseif sgs.Sanguosha:getCurrentCardUseReason() == sgs.CardUseStruct_CARD_USE_REASON_RESPONSE then
+			return true
+		end
+		local _card = sgs.Self:getTag("LuaGuhuo"):toCard()
+		if _card == nil then
+			return false
+		end
+		local card = sgs.Sanguosha:cloneCard(_card)
+		card:setCanRecast(false)
+		card:deleteLater()
+		return card and card:targetsFeasible(players, sgs.Self)
+	end ,
+	on_validate = function(self, card_use)
+		local yuji = card_use.from
+		local room = yuji:getRoom()
+		local to_guhuo = self:getUserString()
+		if to_guhuo == "slash" and sgs.Sanguosha:getCurrentCardUseReason() == sgs.CardUseStruct_CARD_USE_REASON_RESPONSE_USE then
+			local guhuo_list = {}
+			table.insert(guhuo_list, "slash")
+			local sts = sgs.GetConfig("BanPackages", "")
+			if not string.find(sts, "maneuvering") then
+				table.insert(guhuo_list, "normal_slash")
+				table.insert(guhuo_list, "thunder_slash")
+				table.insert(guhuo_list, "fire_slash")
+			end
+			to_guhuo = room:askForChoice(yuji, "guhuo_slash", table.concat(guhuo_list, "+"))
+			yuji:setTag("GuhuoSlash", sgs.QVariant(to_guhuo))
+		end
+		if guhuo(self, yuji) then
+			local card = sgs.Sanguosha:getCard(self:getSubcards():first())
+			local user_str = ""
+			if to_guhuo == "slash"  then
+				if card:isKindOf("Slash") then
+					user_str = card:objectName()
+				else
+					user_str = "slash"
+				end
+			elseif to_guhuo == "normal_slash" then
+				user_str = "slash"
+			else
+				user_str = to_guhuo
+			end
+			--yuji:setTag("GuhuoSlash", sgs.QVariant(user_str))
+			local use_card = sgs.Sanguosha:cloneCard(user_str, card:getSuit(), card:getNumber())
+			use_card:setSkillName("LuaGuhuo")
+			use_card:addSubcard(self:getSubcards():first())
+			use_card:deleteLater()
+			local tos = card_use.to
+			for _, to in sgs.qlist(tos) do
+				local skill = room:isProhibited(yuji, to, use_card)
+				if skill then
+					card_use.to:removeOne(to)
+				end
+			end
+			return use_card
+		else
+			return nil
+		end
+	end ,
+	on_validate_in_response = function(self, yuji)
+		local room = yuji:getRoom()
+		local to_guhuo = ""
+		if self:getUserString() == "peach+analeptic" then
+			local guhuo_list = {}
+			table.insert(guhuo_list, "peach")
+			local sts = sgs.GetConfig("BanPackages", "")
+			if not string.find(sts, "maneuvering") then
+				table.insert(guhuo_list, "analeptic")
+			end
+			to_guhuo = room:askForChoice(yuji, "guhuo_saveself", table.concat(guhuo_list, "+"))
+			yuji:setTag("GuhuoSaveSelf", sgs.QVariant(to_guhuo))
+		elseif self:getUserString() == "slash" then
+			local guhuo_list = {}
+			table.insert(guhuo_list, "slash")
+			local sts = sgs.GetConfig("BanPackages", "")
+			if not string.find(sts, "maneuvering") then
+				table.insert(guhuo_list, "normal_slash")
+				table.insert(guhuo_list, "thunder_slash")
+				table.insert(guhuo_list, "fire_slash")
+			end
+			to_guhuo = room:askForChoice(yuji, "guhuo_slash", table.concat(guhuo_list, "+"))
+			yuji:setTag("GuhuoSlash", sgs.QVariant(to_guhuo))
+		else
+			to_guhuo = self:getUserString()
+		end
+		if guhuo(self, yuji) then
+			local card = sgs.Sanguosha:getCard(self:getSubcards():first())
+			local user_str = ""
+			if to_guhuo == "slash" then
+				if card:isKindOf("Slash") then
+					user_str = card:objectName()
+				else
+					user_str = "slash"
+				end
+			elseif to_guhuo == "normal_slash" then
+				user_str = "slash"
+			else
+				user_str = to_guhuo
+			end
+			local use_card = sgs.Sanguosha:cloneCard(user_str, card:getSuit(), card:getNumber())
+			use_card:setSkillName("LuaGuhuo")
+			use_card:addSubcard(self)
+			use_card:deleteLater()
+			return use_card
+		else
+			return nil
+		end
+	end
+}
+LuaGuhuo = sgs.CreateOneCardViewAsSkill{
+	name = "LuaGuhuo",
+	filter_pattern = ".|.|.|hand",
+	response_or_use = true,
+	enabled_at_response = function(self, player, pattern)
+		local current = false
+		local players = player:getAliveSiblings()
+		players:append(player)
+		for _, p in sgs.qlist(players) do
+			if p:getPhase() ~= sgs.Player_NotActive then
+				current = true
+				break
+			end
+		end
+		if not current then return false end
+		if player:isKongcheng() or player:hasFlag("GuhuoUsed") or string.sub(pattern, 1, 1) == "." or string.sub(pattern, 1, 1) == "@" then
+            return false
+		end
+        if pattern == "peach" and player:getMark("Global_PreventPeach") > 0 then return false end
+        if string.find(pattern, "[%u%d]") then return false end--这是个极其肮脏的黑客！！ 因此我们需要去阻止基本牌模式
+		return true
+	end,
+	enabled_at_play = function(self, player)
+		local current = false
+		local players = player:getAliveSiblings()
+		players:append(player)
+		for _, p in sgs.qlist(players) do
+			if p:getPhase() ~= sgs.Player_NotActive then
+				current = true
+				break
+			end
+		end
+		if not current then return false end
+		return not player:isKongcheng() and not player:hasFlag("GuhuoUsed")
+	end,
+	view_as = function(self, cards)
+		if sgs.Sanguosha:getCurrentCardUseReason() == sgs.CardUseStruct_CARD_USE_REASON_RESPONSE or sgs.Sanguosha:getCurrentCardUseReason() == sgs.CardUseStruct_CARD_USE_REASON_RESPONSE_USE then
+			local card = LuaGuhuoCard:clone()
+			card:setUserString(sgs.Sanguosha:getCurrentCardUsePattern())
+			card:addSubcard(cards)
+			return card
+		end
+		local c = sgs.Self:getTag("LuaGuhuo"):toCard()
+        if c then
+            local card = LuaGuhuoCard:clone()
+            if not string.find(c:objectName(), "slash") then
+                card:setUserString(c:objectName())
+            else
+				card:setUserString(sgs.Self:getTag("GuhuoSlash"):toString())
+				--card:setTargetFixed(c:targetFixed() or sgs.Sanguosha:getCurrentCardUseReason() == sgs.CardUseStruct_CARD_USE_REASON_RESPONSE)
+			end
+			card:addSubcard(cards)
+			return card
+        else
+			return nil
+		end
+	end,
+	enabled_at_nullification = function(self, player)
+		local current = player:getRoom():getCurrent()
+		if not current or current:isDead() or current:getPhase() == sgs.Player_NotActive then return false end
+		return not player:isKongcheng() and not player:hasFlag("GuhuoUsed")
+	end
+}
+LuaGuhuo:setGuhuoDialog("lr")
+LuaGuhuoClear = sgs.CreateTriggerSkill{
+	name = "#LuaGuhuo-clear" ,
+	events = {sgs.EventPhaseChanging} ,
+	can_trigger = function(self, target)
+		return target
+	end ,
+	on_trigger = function(self, event, player, data)
+		local change = data:toPhaseChange()
+		local room = player:getRoom()
+        if change.to == sgs.Player_NotActive then
+			for _, p in sgs.qlist(room:getAlivePlayers()) do
+                if p:hasFlag("GuhuoUsed") then
+                    room:setPlayerFlag(p, "-GuhuoUsed")
+				end
+            end
+        end
+		return false
+	end
+}```
 [返回索引](#技能索引)
 ##蛊惑-旧
 **相关武将**：怀旧·于吉  
 **描述**：你可以说出一张基本牌或非延时类锦囊牌的名称，并背面朝上使用或打出一张手牌。若无其他角色质疑，则亮出此牌并按你所述之牌结算。若有其他角色质疑则亮出验明：若为真，质疑者各失去1点体力；若为假，质疑者各摸一张牌。除非被质疑的牌为红桃且为真，此牌仍然进行结算，否则无论真假，将此牌置入弃牌堆。  
-**引用**：LuaNosguhuo    
+**引用**：LuaNosguhuo	
 **状态**：1217验证通过
 ```lua
 	function Set(list)
@@ -1630,6 +1455,12 @@
 ```
 [返回索引](#技能索引)
 ##归汉
+**相关武将**：SP·孙皓  
+**描述**：主公技。锁定技。其他吴势力角色于你的回合内视为已受伤的角色。 
+**引用**：LuaGuiming  
+**状态**：Lua无法实现
+[返回索引](#技能索引)
+##归汉
 **相关武将**：倚天·蔡昭姬  
 **描述**：出牌阶段，你可以主动弃置两张相同花色的红色手牌，和你指定的一名其他存活角色互换位置。每阶段限一次  
 **引用**：LuaGuihan  
@@ -1675,36 +1506,29 @@
 [返回索引](#技能索引)
 ##归心
 **相关武将**：神·曹操  
-**描述**：每当你受到1点伤害后，你可以分别从每名其他角色的区域获得一张牌，然后将你的武将牌翻面。  
+**描述**：每当你受到1点伤害后，你可以依次获得所有其他角色区域内的一张牌，然后将武将牌翻面。  
 **引用**：LuaGuixin  
-**状态**：1217验证通过
+**状态**：0405验证通过
 
 ```lua
-	LuaGuixin = sgs.CreateTriggerSkill{
+	LuaGuixin = sgs.CreateMasochismSkill{
 		name = "LuaGuixin" ,
-		events = {sgs.Damaged} ,
-		on_trigger = function(self, event, player, data)
+		on_damaged = function(self, player, damage)
 			local room = player:getRoom()
-			local n = player:getMark("LuaGuixinTimes")
+			local n = player:getMark("LuaGuixinTimes")--这个标记为了ai
 			player:setMark("LuaGuixinTimes", 0)
-			local damage = data:toDamage()
+			local data = sgs.QVariant()
+			data:setValue(damage)
 			local players = room:getOtherPlayers(player)
 			for i = 0, damage.damage - 1, 1 do
-				local can_invoke = false
-				for _, p in sgs.qlist(players) do
-					if not p:isAllNude() then
-						can_invoke = true
-						break
-					end
-				end
-				if not can_invoke then break end
 				player:addMark("LuaGuixinTimes")
 				if player:askForSkillInvoke(self:objectName(), data) then
 					player:setFlags("LuaGuixinUsing")
-					for _, _player in sgs.qlist(players) do
-						if _player:isAlive() and (not _player:isAllNude()) then
-							local card_id = room:askForCardChosen(player, _player, "hej", self:objectName())
-							room:obtainCard(player, sgs.Sanguosha:getCard(card_id), room:getCardPlace(card_id) ~= sgs.Player_PlaceHand)
+					for _, p in sgs.qlist(players) do
+						if p:isAlive() and (not p:isAllNude()) then
+							local reason = sgs.CardMoveReason(sgs.CardMoveReason_S_REASON_EXTRACTION, player:objectName())
+							local card_id = room:askForCardChosen(player, p, "hej", self:objectName())
+							room:obtainCard(player, sgs.Sanguosha:getCard(card_id), reason, room:getCardPlace(card_id) ~= sgs.Player_PlaceHand)
 						end
 					end
 					player:turnOver()
@@ -1716,6 +1540,7 @@
 			player:setMark("LuaGuixinTimes", n)
 		end
 	}
+
 ```
 [返回索引](#技能索引)
 ##归心-倚天
@@ -1833,10 +1658,10 @@
 ```
 [返回索引](#技能索引)
 ##鬼才
-**相关武将**：标准·司马懿  
-**描述**：在一名角色的判定牌生效前，你可以打出一张手牌代替之。  
+**相关武将**：界限突破·司马懿  
+**描述**： 每当一名角色的判定牌生效前，你可以打出一张牌代替之。     
 **引用**：LuaGuicai  
-**状态**：1217验证通过
+**状态**：0405验证通过
 
 ```lua
 	LuaGuicai = sgs.CreateTriggerSkill{
@@ -1844,21 +1669,25 @@
 		events = {sgs.AskForRetrial} ,
 		on_trigger = function(self, event, player, data)
 			local room = player:getRoom()
-			if player:isKongcheng() then return false end
+			if player:isNude() then return false end
 			local judge = data:toJudge()
 			local prompt_list = {
 				"@guicai-card" ,
 				judge.who:objectName() ,
 				self:objectName() ,
 				judge.reason ,
-				string.format("%d", judge.card:getEffectiveId())
+				tostring(judge.card:getEffectiveId())
 			}
 			local prompt = table.concat(prompt_list, ":")
 			local forced = false
-			if player:getMark("JilveEvent") == sgs.AskForRetrial then forced = true end
-			local askforcardpattern = "."
-			if forced then askforcardpattern = ".!" end
-			local card = room:askForCard(player, askforcardpattern, prompt, data, sgs.Card_MethodResponse, judge.who, true)
+			if player:getMark("JilveEvent") == sgs.AskForRetrial then 
+				forced = true 
+			end
+			local rcard = ".."
+			if forced then 
+				rcard = "..!" 
+			end
+			local card = room:askForCard(player, rcard, prompt, data, sgs.Card_MethodResponse, judge.who, true)
 			if forced and (card == nil) then
 				card = player:getRandomHandCard()
 			end
@@ -1870,33 +1699,47 @@
 	}
 ```
 [返回索引](#技能索引)
+##鬼才-旧
+**相关武将**：标准·司马懿  
+**描述**： 每当一名角色的判定牌生效前，你可以打出一张手牌代替之。     
+**引用**：LuaNosGuicai  
+**状态**：0405验证通过
+
+```lua
+	LuaNosGuicai = sgs.CreateTriggerSkill{
+		name = "LuaNosGuicai" ,
+		events = {sgs.AskForRetrial} ,
+		on_trigger = function(self, event, player, data)
+			local room = player:getRoom()
+			if player:isKongcheng() then return false end
+			local judge = data:toJudge()
+			local prompt_list = {
+				"@nosguicai-card" ,
+				judge.who:objectName() ,
+				self:objectName() ,
+				judge.reason ,
+				tostring(judge.card:getEffectiveId())
+			}
+			local prompt = table.concat(prompt_list, ":")
+			local card = room:askForCard(player, ".", prompt, data, sgs.Card_MethodResponse, judge.who, true)
+			if card then
+				room:retrial(card, player, judge, self:objectName())
+			end
+			return false
+		end
+	}
+```
+[返回索引](#技能索引)
 ##鬼道
-**相关武将**：风·张角  
-**描述**：在一名角色的判定牌生效前，你可以打出一张黑色牌替换之。  
+**相关武将**：风·张角、旧风·张角  
+**描述**：每当一名角色的判定牌生效前，你可以打出一张黑色牌替换之。  
 **引用**：LuaGuidao  
-**状态**：1217验证通过
+**状态**：0405验证通过
 
 ```lua
 	LuaGuidao = sgs.CreateTriggerSkill{
 		name = "LuaGuidao" ,
 		events = {sgs.AskForRetrial} ,
-		on_trigger = function(self, event, player, data)
-			local judge = data:toJudge()
-			local prompt_list = {
-				"@guidao-card" ,
-				judge.who:objectName() ,
-				self:objectName() ,
-				judge.reason ,
-				string.format("%d", judge.card:getEffectiveId())
-			}
-			local prompt = table.concat(prompt_list, ":")
-			local room = player:getRoom()
-			local card = room:askForCard(player, ".|black", prompt, data, sgs.Card_MethodResponse, judge.who, true)
-			if card then
-				room:retrial(card, player, judge, self:objectName(), true)
-			end
-			return false
-		end ,
 		can_trigger = function(self, target)
 			if not (target and target:isAlive() and target:hasSkill(self:objectName())) then return false end
 			if target:isKongcheng() then
@@ -1912,6 +1755,23 @@
 			else
 				return true
 			end
+		end ,
+		on_trigger = function(self, event, player, data)
+			local room = player:getRoom()
+			local judge = data:toJudge()
+			local prompt_list = {
+				"@guidao-card" ,
+				judge.who:objectName() ,
+				self:objectName() ,
+				judge.reason ,
+				tostring(judge.card:getEffectiveId())
+			}
+			local prompt = table.concat(prompt_list, ":")
+			local card = room:askForCard(player, ".|black", prompt, data, sgs.Card_MethodResponse, judge.who, true)
+			if card then
+				room:retrial(card, player, judge, self:objectName(), true)
+			end
+			return false
 		end
 	}
 ```

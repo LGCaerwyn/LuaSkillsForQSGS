@@ -1,7 +1,7 @@
 --[[
 	代码速查手册（K区）
 	技能索引：
-		看破、慷忾、克构、克己、空城、苦肉、狂暴、狂风、狂斧、狂骨、狂骨、溃围
+		看破、慷忾、克构、克己、空城、苦肉、苦肉、狂暴、狂风、狂斧、狂骨、狂骨、溃围
 ]]--
 --[[
 	技能名：看破
@@ -13,7 +13,7 @@
 LuaKanpo = sgs.CreateOneCardViewAsSkill{
 	name = "LuaKanpo",
 	filter_pattern = ".|black|.|hand",
-    response_pattern = "nullification",
+	response_pattern = "nullification",
 	view_as = function(self, first)
 		local ncard = sgs.Sanguosha:cloneCard("nullification", first:getSuit(), first:getNumber())
 		ncard:addSubcard(first)
@@ -117,33 +117,36 @@ LuaKegou = sgs.CreateTriggerSkill{
 }
 --[[
 	技能名：克己
-	相关武将：标准·吕蒙
-	描述：若你于出牌阶段未使用或打出过【杀】，你可以跳过此回合的弃牌阶段。
+	相关武将：标准·吕蒙、界限突破·吕蒙、☆SP·吕蒙
+	描述：若你未于出牌阶段内使用或打出【杀】，你可以跳过弃牌阶段。 
 	引用：LuaKeji
-	状态：1217验证通过
+	状态：0405验证通过
 ]]--
 LuaKeji = sgs.CreateTriggerSkill{
 	name = "LuaKeji" ,
 	frequency = sgs.Skill_Frequent ,
-	events = {sgs.PreCardUsed,sgs.CardResponded,sgs.EventPhaseChanging} ,	
+	global = true ,
+	events = {sgs.PreCardUsed, sgs.CardResponded, sgs.EventPhaseChanging} ,   
 	on_trigger = function(self, event, player, data)
 		if event == sgs.EventPhaseChanging then
+			local can_trigger = true
+			if player:hasFlag("LuaKejiSlashInPlayPhase") then
+				can_trigger = false
+				player:setFlags("-LuaKejiSlashInPlayPhase")
+			end
 			local change = data:toPhaseChange()
-			if change.to == sgs.Player_Discard and player and player:isAlive() and player:hasSkill(self:objectName()) then
-				if not player:hasFlag("LuaKejiSlashInPlayPhase") and player:askForSkillInvoke(self:objectName()) then
+			if change.to == sgs.Player_Discard and player:isAlive() and player:hasSkill(self:objectName()) then
+				if can_trigger and player:askForSkillInvoke(self:objectName()) then
 					player:skip(sgs.Player_Discard)
-				end
-				if player:hasFlag("LuaKejiSlashInPlayPhase") then
-					player:setFlags("-LuaKejiSlashInPlayPhase")
 				end
 			end
 		else
-		    if player:getPhase() == sgs.Player_Play then
+			if player:getPhase() == sgs.Player_Play then
 				local card = nil
 				if event == sgs.PreCardUsed then
 					card = data:toCardUse().card
 				else
-					card = data:toCardResponse().m_card				
+					card = data:toCardResponse().m_card			 
 				end
 				if card:isKindOf("Slash") then
 					player:setFlags("LuaKejiSlashInPlayPhase")
@@ -151,9 +154,6 @@ LuaKeji = sgs.CreateTriggerSkill{
 			end
 		end
 		return false
-	end,
-	can_trigger = function(self, target)
-		return target ~= nil 
 	end
 }
 --[[
@@ -171,156 +171,125 @@ LuaKongcheng = sgs.CreateProhibitSkill{
 }
 --[[
 	技能名：苦肉
-	相关武将：标准·黄盖、SP·台版黄盖
-	描述：出牌阶段，你可以失去1点体力，然后摸两张牌。
+	相关武将：界限突破·黄盖
+	描述：出牌阶段限一次，你可以弃置一张牌：若如此做，你失去1点体力。 
 	引用：LuaKurou
-	状态：1217验证通过
+	状态：0405验证通过
 ]]--
 LuaKurouCard = sgs.CreateSkillCard{
 	name = "LuaKurouCard",
 	target_fixed = true,
-	will_throw = true,
-	on_use = function(self, room, player, targets)
-		room:loseHp(player, 1)
-		if player:isAlive() then
-			room:drawCards(player, 2)
+	on_use = function(self, room, source, targets)
+		room:loseHp(source)
+	end
+}
+LuaKurou = sgs.CreateOneCardViewAsSkill{
+	name = "LuaKurou",
+	filter_pattern = ".!",
+	enabled_at_play = function(self, player)
+		return not player:hasUsed("#LuaKurouCard")
+	end, 
+	view_as = function(self, originalCard) 
+		local card = LuaKurouCard:clone()
+		card:addSubcard(originalCard)
+		card:setSkillName(self:objectName())
+		return card
+	end
+}
+--[[
+	技能名：苦肉
+	相关武将：标准·黄盖、SP·台版黄盖
+	描述：出牌阶段，你可以失去1点体力：若如此做，你摸两张牌。
+	引用：LuaNosKurou
+	状态：0405验证通过
+]]--
+LuaNosKurouCard = sgs.CreateSkillCard{
+	name = "LuaNosKurouCard",
+	target_fixed = true,
+	on_use = function(self, room, source, targets)
+		room:loseHp(source)
+		if source:isAlive() then
+			room:drawCards(source, 2, "noskurou")
 		end
 	end
 }
-LuaKurou = sgs.CreateZeroCardViewAsSkill{
-	name = "LuaKurou",
-	view_as = function(self, cards)
-		return LuaKurouCard:clone()
-	end,
+LuaNosKurou = sgs.CreateZeroCardViewAsSkill{
+	name = "LuaNosKurou",
+	view_as = function()
+		return LuaNosKurouCard:clone()
+	end
 }
 --[[
 	技能名：狂暴（锁定技）
 	相关武将：神·吕布
-	描述：游戏开始时，你获得2枚“暴怒”标记；每当你造成或受到1点伤害后，你获得1枚“暴怒”标记。
-	引用：LuaKuangbao、LuaWrath2、LuaKuangbaoClear
-	状态：1217验证通过
+	描述：游戏开始时，你获得两枚“暴怒”标记。每当你造成或受到1点伤害后，你获得一枚“暴怒”标记。 
+	引用：LuaKuangbao
+	状态：0405验证通过
 ]]--
 LuaKuangbao = sgs.CreateTriggerSkill{
 	name = "LuaKuangbao" ,
-	events = {sgs.Damage, sgs.Damaged} ,
+	events = {sgs.GameStart, sgs.Damage, sgs.Damaged} ,
 	frequency = sgs.Skill_Compulsory ,
 	on_trigger = function(self, event, player, data)
-		local damage = data:toDamage()
-		player:getRoom():addPlayerMark(player,"@wrath",damage.damage)
-	end
-}
-LuaWrath2 = sgs.CreateTriggerSkill{
-	name = "#@wrath-Lua-2" ,
-	events = {sgs.GameStart} ,
-	on_trigger = function(self, event, player, data)
-		player:getRoom():addPlayerMark(player,"@wrath",2)
-	end
-}
-LuaKuangbaoClear = sgs.CreateTriggerSkill{
-	name = "LuaKuangbao-clear" ,
-	events = {sgs.EventLoseSkill} ,
-	on_trigger = function(self, event, player, data)
-		if data:toString() == "LuaKuangbao" then
-			player:loseAllMarks("@wrath")
+		local room = player:getRoom()
+		if event == sgs.GameStart then
+			player:gainMark("@wrath", 2)
+			room:notifySkillInvoked(player, self:objectName())
+		else
+			local damage = data:toDamage()
+			player:gainMark("@wrath", damage.damage)
+			room:notifySkillInvoked(player, self:objectName())
 		end
-	end ,
-	can_trigger = function(self, target)
-		return target
 	end
 }
-
 --[[
 	技能名：狂风
 	相关武将：神·诸葛亮
 	描述：结束阶段开始时，你可以将一张“星”置入弃牌堆并选择一名角色，若如此做，你的下回合开始前，每当其受到的火焰伤害结算开始时，此伤害+1。
-	引用：LuaKuangfeng,LuaKuangfengDamage,LuaKuangfengClear
-	状态：1217验证通过(需与本手册的技能“七星”配合使用)
-	备注：医治永恒：源码的狂风和大雾的技能询问与标记的清除分别位于七星的QixingAsk和QixingClear中，此技能独立出来了。需与本手册的技能“七星”配合使用
+	引用：LuaKuangfeng
+	状态：0405验证通过(需与本手册的技能“七星”配合使用)
+	备注：医治永恒&水饺wch哥：源码的狂风和大雾的技能询问与标记的清除分别位于七星的QixingAsk和QixingClear中，此技能独立出来了。需与本手册的技能“七星”配合使用
 ]]--
-DiscardStar = function(shenzhuge, room,n, skillName)	
-	local stars = shenzhuge:getPile("stars")
-	for i = 1, n, 1 do
-		room:fillAG(stars, shenzhuge)
-		local card_id = room:askForAG(shenzhuge, stars, false, "qixing-discard")
-		room:clearAG(shenzhuge)		
-		stars:removeOne(card_id)
-		local card = sgs.Sanguosha:getCard(card_id)
-		room:throwCard(card, nil, nil)
-	end
-end
 LuaKuangfengCard = sgs.CreateSkillCard{
 	name = "LuaKuangfengCard",
 	handling_method = sgs.Card_MethodNone,
-	filter = function(self, targets, to_select)
+	will_throw = false,
+	filter = function(self, targets, to_select, player)
 		return #targets == 0
 	end,
 	on_effect = function(self, effect)
-		local room = effect.from:getRoom()
-		DiscardStar(effect.from,room,1,"LuaKuangfeng")
+		local reason = sgs.CardMoveReason(sgs.CardMoveReason_S_REASON_REMOVE_FROM_PILE, "", "LuaKuangfeng", "")
+		effect.to:getRoom():throwCard(self, reason, nil)
 		effect.from:setTag("LuaQixing_user", sgs.QVariant(true))
 		effect.to:gainMark("@gale")
-	end
+	end,
 }
-LuaKuangfengVS = sgs.CreateZeroCardViewAsSkill{
-	name = "LuaKuangfeng" ,
+LuaKuangfengVS = sgs.CreateOneCardViewAsSkill{
+	name = "LuaKuangfeng", 
 	response_pattern = "@@LuaKuangfeng",
-	view_as = function()
-		return LuaKuangfengCard:clone()
-	end
+	filter_pattern = ".|.|.|stars",
+	expand_pile = "stars",
+	view_as = function(self, card)
+		local kf = LuaKuangfengCard:clone()
+		kf:addSubcard(card)
+		return kf
+	end,
 }
 LuaKuangfeng = sgs.CreateTriggerSkill{
 	name = "LuaKuangfeng",
-	events = {sgs.EventPhaseStart},
-	view_as_skill = LuaKuangfengVS,
-	on_trigger = function(self,event,player,data)		
-		if player:getPhase() ~= sgs.Player_Finish then return false end
-		if player:getPile("stars"):isEmpty() then return false end
-		local room = player:getRoom()
-		room:askForUseCard(player,"@@LuaKuangfeng","@LuaKuangfeng")
-		return false
-	end
-}
-LuaKuangfengDamage = sgs.CreateTriggerSkill{
-	name = "#LuaKuangfengDamage",
 	events = {sgs.DamageForseen},
+	view_as_skill = LuaKuangfengVS,
+	can_trigger = function(self, player)
+		return player ~= nil and player:getMark("@gale") > 0
+	end,
 	on_trigger = function(self, event, player, data)
 		local damage = data:toDamage()
 		if damage.nature == sgs.DamageStruct_Fire then
 			damage.damage = damage.damage + 1
 			data:setValue(damage)
 		end
-	end,
-	can_trigger = function(self, target)
-		return target and target:getMark("@gale") > 0
-	end
-}
-LuaKuangfengClear = sgs.CreateTriggerSkill{
-	name = "#LuaKuangfengClear",
-	events = {sgs.Death,sgs.EventPhaseStart},
-	can_trigger = function(self,target)
-		return target and target:getTag("LuaQixing_user"):toBool()
-	end,
-	on_trigger = function(self,event,player,data)
-		local room = player:getRoom()
-		if event == sgs.Death then
-			local death = data:toDeath()
-			if death.who:objectName() ~= player:objectName() then return false end
-			for _,p in sgs.qlist(room:getAllPlayers()) do
-				if p:getMark("@gale") > 0 then
-					p:loseAllMarks("@gale")
-				end
-			end
-		else
-			if player:getPhase() == sgs.Player_RoundStart then
-				for _,p in sgs.qlist(room:getAllPlayers()) do
-					if p:getMark("@gale") > 0 then
-						p:loseAllMarks("@gale")
-					end
-				end
-			end
-		end
 		return false
-	end
+	end,
 }
 --[[
 	技能名：狂斧

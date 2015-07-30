@@ -1,7 +1,7 @@
 代码速查手册（F区）
 ==
 #技能索引
-[反间](#反间)、[反间-翼](#反间-翼)、[反馈](#反馈)、[放权](#放权)、[放逐](#放逐)、[飞影](#飞影)、[焚城](#焚城)、[焚心](#焚心)、[奋激](#奋激)、[奋迅](#奋迅)、[愤勇](#愤勇)、[奉印](#奉印)、[伏枥](#伏枥)、[扶乱](#扶乱)、[辅佐](#辅佐)、[父魂](#父魂)、[父魂-旧](#父魂-旧)
+[反间](#反间)、[反间-翼](#反间-翼)、[反馈](#反馈)、[反馈-旧](#反馈-旧)、[逢亮](#逢亮)、[放权](#放权)、[放逐](#放逐)、[飞影](#飞影)、[焚城](#焚城)、[焚心](#焚心)、[奋激](#奋激)、[奋迅](#奋迅)、[愤勇](#愤勇)、[奉印](#奉印)、[伏枥](#伏枥)、[扶乱](#扶乱)、[辅佐](#辅佐)、[父魂](#父魂)、[父魂-旧](#父魂-旧)
 
 [返回目录](README.md#目录)
 
@@ -92,29 +92,79 @@
 ```
 [返回索引](#技能索引)
 ##反馈
-**相关武将**：标准·司马懿  
-**描述**：每当你受到一次伤害后，你可以获得伤害来源的一张牌。  
+**相关武将**：界限突破·司马懿  
+**描述**：每当你受到1点伤害后，你可以获得伤害来源的一张牌。    
 **引用**：LuaFankui  
-**状态**：1217验证通过  
+**状态**：0405验证通过  
 ```lua
-	LuaFankui = sgs.CreateTriggerSkill{
+	LuaFankui = sgs.CreateMasochismSkill{
 		name = "LuaFankui",
-		frequency = sgs.Skill_NotFrequent,
-		events = {sgs.Damaged},
-		on_trigger = function(self, event, player, data)
+		on_damaged = function(self, player, damage)
+			local from = damage.from
 			local room = player:getRoom()
-			local damage = data:toDamage()
-			local source = damage.from
-			local source_data = sgs.QVariant()
-			source_data:setValue(source)
-			if source then
-				if not source:isNude() then
-					if room:askForSkillInvoke(player, self:objectName(), source_data) then
-						local card_id = room:askForCardChosen(player, source, "he", self:objectName())
-						room:obtainCard(player, card_id)
-					end
+			for i = 0, damage.damage - 1, 1 do
+				local data = sgs.QVariant()
+				data:setValue(from)
+				if from and not from:isNude() and room:askForSkillInvoke(player, self:objectName(), data) then
+					local card_id = room:askForCardChosen(player, from, "he", self:objectName())
+					local reason = sgs.CardMoveReason(sgs.CardMoveReason_S_REASON_EXTRACTION, player:objectName())
+					room:obtainCard(player, sgs.Sanguosha:getCard(card_id), reason, room:getCardPlace(card_id) ~= sgs.Player_PlaceHand)
+				else
+					break
 				end
 			end
+		end
+	}
+```
+[返回索引](#技能索引)
+##反馈-旧
+**相关武将**：标准·司马懿  
+**描述**：每当你受到伤害后，你可以获得伤害来源的一张牌。  
+**引用**：LuaNosFankui  
+**状态**：0405验证通过  
+```lua
+	LuaNosFankui = sgs.CreateMasochismSkill{
+		name = "LuaNosFankui",
+		on_damaged = function(self, player, damage)
+			local from = damage.from
+			local room = player:getRoom()
+			local data = sgs.QVariant()
+			data:setValue(from)
+			if from and not from:isNude() and room:askForSkillInvoke(player, self:objectName(), data) then
+				local card_id = room:askForCardChosen(player, from, "he", self:objectName())
+				local reason = sgs.CardMoveReason(sgs.CardMoveReason_S_REASON_EXTRACTION, player:objectName())
+				room:obtainCard(player, sgs.Sanguosha:getCard(card_id), reason, room:getCardPlace(card_id) ~= sgs.Player_PlaceHand)
+			end
+		end
+	}
+```
+[返回索引](#技能索引)
+##逢亮
+**相关武将**：界限突破SP·姜维  
+**描述**：觉醒技，当你进入濒死状态时，你减1点体力上限并将体力值恢复至2点，然后获得技能“挑衅”，将技能“困奋”改为非锁定技    
+**引用**：LuaFengliang  
+**状态**：0504验证通过  
+**备注**：zy：要和手册里的困奋配合使用、或者将获得的标记改为“fengliang”并将“LuaKunfen”改为“kunfen”  
+```lua
+	LuaFengliang = sgs.CreateTriggerSkill{
+		name = "LuaFengliang" ,
+		events = {sgs.EnterDying} ,
+		frequency = sgs.Skill_Wake ,
+		can_trigger = function(self, target)
+			return target and target:hasSkill(self:objectName()) and target:isAlive() and target:getMark(self:objectName()) == 0
+		end ,
+		on_trigger = function(self, event, player, data)
+			local room = player:getRoom()
+			room:addPlayerMark(player, self:objectName(), 1)
+			if room:changeMaxHpForAwakenSkill(player) and player:getMark(self:objectName()) > 0 then
+				local recover = 2 - player:getHp()
+				room:recover(player, sgs.RecoverStruct(nil, nil, recover))
+				room:handleAcquireDetachSkills(player, "tiaoxin")
+				if player:hasSkill("LuaKunfen", true) then
+					room:doNotify(player, 86, sgs.QVariant("LuaKunfen"))
+				end
+			end
+			return false
 		end
 	}
 ```
@@ -175,44 +225,42 @@
 ```
 [返回索引](#技能索引)
 ##放逐
-**相关武将**：林·曹丕、铜雀台·曹丕  
-**描述**：每当你受到一次伤害后，你可以令一名其他角色摸X张牌（X为你已损失的体力值），然后该角色将其武将牌翻面。  
+**相关武将**：林·曹丕、铜雀台·曹丕、神·司马懿
+**描述**：每当你受到伤害后，你可以令一名其他角色摸X张牌，然后将其武将牌翻面。（X为你已损失的体力值）  
 **引用**：LuaFangzhu  
-**状态**：1217验证通过
+**状态**：0405验证通过
 ```lua
-	LuaFangzhu = sgs.CreateTriggerSkill{
+	LuaFangzhu = sgs.CreateMasochismSkill{
 		name = "LuaFangzhu",
-		frequency = sgs.Skill_NotFrequent,
-		events = {sgs.Damaged},
-		on_trigger = function(self, event, player, data)
+		on_damaged = function(self, player)
 			local room = player:getRoom()
-			if room:askForSkillInvoke(player, self:objectName(), data) then
-				local list = room:getOtherPlayers(player)
-				local target = room:askForPlayerChosen(player, list, self:objectName())
-				if target then
-					local count = player:getLostHp()
-					room:drawCards(target, count, self:objectName())
-					target:turnOver()
-				end
+			local to = room:askForPlayerChosen(player, room:getOtherPlayers(player), self:objectName(), "fangzhu-invoke", player:getMark("JilveEvent") ~= 35, true)
+			if to then
+				to:drawCards(player:getLostHp(), self:objectName())
+				to:turnOver()
 			end
 		end
 	}
+
 ```
 [返回索引](#技能索引)
 ##飞影
 **相关武将**：神·曹操、倚天·魏武帝  
-**描述**：**锁定技，**其他角色计算的与你的距离+1。  
+**描述**：**锁定技，**其他角色与你的距离+1。
 **引用**：LuaFeiying  
-**状态**：1217验证通过
+**状态**：0405验证通过
 ```lua
 	LuaFeiying = sgs.CreateDistanceSkill{
 		name = "LuaFeiying",
 		correct_func = function(self, from, to)
 			if to:hasSkill("LuaFeiying") then
 				return 1
+			else
+				return 0
 			end
-		end,
+		end
 	}
+
 ```
 [返回索引](#技能索引)
 ##焚城
@@ -319,24 +367,32 @@
 **相关武将**：风·周泰  
 **描述**：每当一名角色的手牌因另一名角色的弃置或获得为手牌而失去后，你可以失去1点体力：若如此做，该角色摸两张牌。   
 **引用**：LuaFenji  
-**状态**：1217验证通过
+**状态**：0405验证通过
 ```lua
 	LuaFenji = sgs.CreateTriggerSkill{
 		name = "LuaFenji",
-		events = {sgs.CardsMoveOneTime},	
+		events = {sgs.CardsMoveOneTime},
 		on_trigger = function(self, event, player, data)
 			local room = player:getRoom()
 			local move = data:toMoveOneTime()
-			if not move.from then return false end
-			if player:getHp() > 0 and move.from:isAlive() and move.from_places:contains(sgs.Player_PlaceHand) 
-				and move.reason.m_reason == sgs.CardMoveReason_S_REASON_DISMANTLE
-					and move.reason.m_playerId ~= move.reason.m_targetId
-					or (move.to and move.to:objectName() ~= move.from:objectName() and move.to_place == sgs.Player_PlaceHand) then
-				if room:askForSkillInvoke(player, self:objectName(), data) then
+			if player:getHp() > 0 and move.from and move.from:isAlive() and move.from_places:contains(sgs.Player_PlaceHand)
+				and ((move.reason.m_reason == sgs.CardMoveReason_S_REASON_DISMANTLE
+				and move.reason.m_playerId ~= move.reason.m_targetId)
+				or (move.to and move.to:objectName() ~= move.from:objectName() and move.to_place == sgs.Player_PlaceHand
+					and move.reason.m_reason ~= sgs.CardMoveReason_S_REASON_GIVE
+					and move.reason.m_reason ~= sgs.CardMoveReason_S_REASON_SWAP)) then
+				move.from:setFlags("LuaFenjiMoveFrom") --For AI
+				local invoke = room:askForSkillInvoke(player, self:objectName(), data)
+				move.from:setFlags("-LuaFenjiMoveFrom")
+				if invoke then
 					room:loseHp(player)
 					if move.from:isAlive() then
-						local from = room:findPlayer(move.from:getGeneralName())
-						room:drawCards(from,2)
+						for _,p in sgs.qlist(room:getAllPlayers()) do
+							if p:objectName() == move.from:objectName() then
+								room:drawCards(p, 2, "LuaFenji")
+								break
+							end
+						end
 					end
 				end
 			end
