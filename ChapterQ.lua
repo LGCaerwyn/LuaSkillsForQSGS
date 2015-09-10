@@ -1,7 +1,7 @@
 --[[
 	代码速查手册（Q区）
 	技能索引：
-		七星、戚乱、奇才、奇才、奇策、奇袭、千幻、谦逊、潜袭、潜袭、枪舞、强袭、巧变、巧说、琴音、青囊、倾城、倾国、倾国1V1、求援、驱虎、权计、
+		七星、戚乱、奇才、奇才、奇策、奇袭、千幻、谦逊、潜袭、潜袭、枪舞、强袭、巧变、巧说、琴音、青囊、倾城、倾国、倾国1V1、清俭、求援、驱虎、权计、
 ]]--
 --[[
 	技能名：七星
@@ -195,17 +195,17 @@ LuaQiluan = sgs.CreateTriggerSkill{
 }
 --[[
 	技能名：奇才（锁定技）
-	相关武将：标准·黄月英
+	相关武将：标准·黄月英、JSP·黄月英
 	描述：你使用锦囊牌无距离限制。你装备区里除坐骑牌外的牌不能被其他角色弃置。
 	状态：尚未完成
-	备注：后半部分被写入源码，详见Player::canDiscard
+	备注：前半部分与奇才一样，后半部分被写入源码，详见Player::canDiscard
 ]]--
 --[[
 	技能名：奇才（锁定技）
 	相关武将：怀旧-标准·黄月英-旧、SP·台版黄月英
 	描述：你使用锦囊牌时无距离限制。
 	引用：LuaNosQicai
-	状态：1217验证通过
+	状态：0405验证通过
 ]]--
 LuaNosQicai = sgs.CreateTargetModSkill{
 	name = "LuaNosQicai" ,
@@ -378,11 +378,11 @@ LuaQixi = sgs.CreateOneCardViewAsSkill{
 	技能名：谦逊（锁定技）
 	相关武将：标准·陆逊、国战·陆逊
 	描述：你不能被选择为【顺手牵羊】和【乐不思蜀】的目标。
-	引用：LuaQianxun
-	状态：1217验证通过
+	引用：LuaNosQianxun
+	状态：0405验证通过
 ]]--
-LuaQianxun = sgs.CreateProhibitSkill{
-	name = "LuaQianxun",
+LuaNosQianxun = sgs.CreateProhibitSkill{
+	name = "LuaNosQianxun",
 	is_prohibited = function(self, from, to, card)
 		return to:hasSkill(self:objectName()) and (card:isKindOf("Snatch") or card:isKindOf("Indulgence"))
 	end
@@ -1155,6 +1155,35 @@ LuaKOFQingguo = sgs.CreateOneCardViewAsSkill{
 	end,
 	enabled_at_response = function(self, target, pattern)
 		return pattern == "jink" and target:getEquips():length() > 0
+	end
+}
+--[[
+	技能名：清俭
+	相关武将：界限突破·夏侯惇
+	描述：每当你于摸牌阶段外获得手牌后，你可以将其中至少一张牌任意分配给其他角色。    
+	引用：LuaQingjian
+	状态：0405验证通过
+]]--
+LuaQingjian = sgs.CreateTriggerSkill{
+	name = "LuaQingjian",
+	events = {sgs.CardsMoveOneTime},
+	on_trigger = function(self, event, player, data)
+		local move = data:toMoveOneTime()
+		local room = player:getRoom()
+		if not room:getTag("FirstRound"):toBool() and player:getPhase() ~= sgs.Player_Draw and move.to and move.to:objectName() == player:objectName() then
+			local ids = sgs.IntList()
+			for _,id in sgs.qlist(move.card_ids) do
+				if room:getCardOwner(id) == player and room:getCardPlace(id) == sgs.Player_PlaceHand then
+					ids:append(id)
+				end
+			end
+			if ids:isEmpty() then return false end
+			player:setTag("QingjianCurrentMoveSkill", sgs.QVariant(move.reason.m_skillName))
+			while room:askForYiji(player, ids, self:objectName(), false, false, true, -1, sgs.SPlayerList(), sgs.CardMoveReason(), "@LuaQingjian-distribute", true) do
+				if player:isDead() then return false end
+			end
+		end
+		return false
 	end
 }
 --[[
